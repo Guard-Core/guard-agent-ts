@@ -17,6 +17,7 @@ export type BufferOverflowPolicy = "drop" | "block" | "raise";
 /** Error hook stages, mirroring the Python on_error stages. */
 export type ErrorHookStage =
   | "transport_send"
+  | "encryption"
   | "flush_events"
   | "flush_metrics";
 
@@ -89,6 +90,13 @@ export interface AgentConfig {
   installId: string | null;
   /** HMAC-SHA256 secret for the X-Payload-Signature header. */
   payloadSigningSecret: string | null;
+  /**
+   * Project-specific AES-256 key (urlsafe-base64-encoded, from the core
+   * backend). When set, event/metric batches are encrypted and posted to
+   * /api/v1/events/encrypted; an invalid key fails startup (no plaintext
+   * fallback), mirroring the Python agent.
+   */
+  projectEncryptionKey: string | null;
   /** Optional best-effort failure callback. */
   onError: ErrorHook | null;
   /** Injected logger. */
@@ -254,6 +262,7 @@ export function resolveAgentConfig(input: AgentConfigInput): AgentConfig {
     compressionThreshold: input.compressionThreshold ?? 1024,
     installId: input.installId ?? null,
     payloadSigningSecret: input.payloadSigningSecret ?? null,
+    projectEncryptionKey: input.projectEncryptionKey ?? null,
     onError: input.onError ?? null,
     logger,
     redis: input.redis

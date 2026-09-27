@@ -60,6 +60,13 @@ export type { BufferStats } from "./buffer.js";
 export { HttpTransport } from "./transport.js";
 export type { TransportStats } from "./transport.js";
 
+export {
+  EncryptionConfigError,
+  EncryptionError,
+  PayloadEncryptor,
+  createEncryptor,
+} from "./encryption.js";
+
 export { type RedisHandler, createIoredisHandler, IoredisHandler } from "./redis.js";
 
 export type { AgentLogger } from "./logger.js";

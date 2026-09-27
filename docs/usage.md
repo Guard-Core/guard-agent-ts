@@ -80,6 +80,18 @@ When `payloadSigningSecret` is set, every request carries
 UNCOMPRESSED JSON body; the server decompresses and verifies afterward.
 Gzip (`compressionEnabled`) only affects the wire bytes.
 
+## Encryption
+
+When `projectEncryptionKey` is set (a urlsafe-base64-encoded 256-bit key
+issued by the core backend), event and metric batches are encrypted with
+AES-256-GCM and POSTed to `/api/v1/events/encrypted` as
+`{encrypted_payload, batch_id, agent_version, guard_version,
+guard_core_version}`; the wire format is byte-compatible with the Python
+agent (canonical JSON plaintext, 12-byte nonce prefix, 16-byte auth tag,
+padded urlsafe base64). An invalid key raises at startup; the agent never
+falls back to plaintext. Signing and compression apply to the envelope
+body exactly as they do to plaintext batches.
+
 ## Redis persistence
 
 With a Redis handler attached (via `initializeRedis`, or `redis.url` in
