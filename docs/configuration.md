@@ -11,6 +11,7 @@ at once.
 | `projectId` | `null` | Sent as `X-Project-Id` and in the batch payload when set |
 | `bufferSize` | `100` | Per-kind queue capacity |
 | `flushInterval` | `30` | Periodic flush cadence (seconds) and backoff base |
+| `dynamicRuleInterval` | `300` | Dynamic rule poll cadence (seconds), minimum 60 |
 | `statusInterval` | `300` | Status report cadence (seconds), minimum 60 |
 | `highWatermarkRatio` | `0.8` | Early flush when combined occupancy reaches this share, range (0, 1] |
 | `maxConcurrentFlushes` | `1` | Concurrent early-flush cap, minimum 1 |
@@ -37,7 +38,7 @@ at once.
 - `bufferSize` and `maxConcurrentFlushes` must be positive
 - `flushInterval`, `timeout`, `backoffFactor` must be positive;
   `retryAttempts` cannot be negative
-- `statusInterval` must be at least 60 seconds
+- `statusInterval` and `dynamicRuleInterval` must be at least 60 seconds
 - `highWatermarkRatio` must be in the range (0, 1]
 - `compressionThreshold` cannot be negative
 - `redis.url` must start with `redis://` or `rediss://` and

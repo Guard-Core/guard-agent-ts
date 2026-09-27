@@ -12,7 +12,7 @@
  */
 import { randomUUID } from "node:crypto";
 
-import { InvalidEventError } from "./errors.js";
+import { InvalidEventError, InvalidRulesError } from "./errors.js";
 
 /**
  * Advisory list of event types the SaaS understands, mirroring
@@ -481,3 +481,291 @@ export function statusToWire(status: AgentStatus): Record<string, unknown> {
 
 /** timestampOrDefault is exported for tests and adapters building events. */
 export { timestampOrDefault };
+
+// ---------------------------------------------------------------------------
+// Dynamic rules (mirrors DynamicRules, guard_agent/models.py:250-324)
+// ---------------------------------------------------------------------------
+
+/**
+ * Dynamic rules received from the SaaS platform via GET /api/v1/rules,
+ * mirroring DynamicRules (guard_agent/models.py:250-324). The server
+ * serializes the pydantic model, so the wire payload is snake_case with
+ * ISO-8601 timestamps, endpoint_rate_limits as {endpoint: [requests,
+ * window]} arrays and blocked_cloud_providers as an array (Python set).
+ * camelCase keys are accepted on input too, mirroring the other models in
+ * this module.
+ */
+export class DynamicRules {
+  readonly ruleId: string;
+  readonly version: number;
+  readonly timestamp: Date;
+  readonly expiresAt: Date | null;
+  /** Cache TTL in seconds (drives the client-side rules cache). */
+  readonly ttl: number;
+  readonly ipBlacklist: string[];
+  readonly ipWhitelist: string[];
+  /** Ban duration in seconds. */
+  readonly ipBanDuration: number;
+  readonly blockedCountries: string[];
+  readonly whitelistCountries: string[];
+  readonly globalRateLimit: number | null;
+  readonly globalRateWindow: number | null;
+  /** Per-endpoint limits: endpoint -> [requests, window]. */
+  readonly endpointRateLimits: Record<string, [number, number]>;
+  readonly blockedCloudProviders: Set<string>;
+  readonly blockedUserAgents: string[];
+  readonly suspiciousPatterns: string[];
+  readonly enablePenetrationDetection: boolean | null;
+  readonly enableIpBanning: boolean | null;
+  readonly enableRateLimiting: boolean | null;
+  readonly autoBanThreshold: number | null;
+  readonly autoBanDuration: number | null;
+  readonly enableRateLimitAutoBan: boolean | null;
+  readonly emergencyMode: boolean;
+  readonly emergencyWhitelist: string[];
+  readonly emergencyWhitelistOnly: boolean;
+  readonly message: string | null;
+
+  constructor(fields: {
+    ruleId?: string;
+    version?: number;
+    timestamp?: Date;
+    expiresAt?: Date | null;
+    ttl?: number;
+    ipBlacklist?: string[];
+    ipWhitelist?: string[];
+    ipBanDuration?: number;
+    blockedCountries?: string[];
+    whitelistCountries?: string[];
+    globalRateLimit?: number | null;
+    globalRateWindow?: number | null;
+    endpointRateLimits?: Record<string, [number, number]>;
+    blockedCloudProviders?: Set<string>;
+    blockedUserAgents?: string[];
+    suspiciousPatterns?: string[];
+    enablePenetrationDetection?: boolean | null;
+    enableIpBanning?: boolean | null;
+    enableRateLimiting?: boolean | null;
+    autoBanThreshold?: number | null;
+    autoBanDuration?: number | null;
+    enableRateLimitAutoBan?: boolean | null;
+    emergencyMode?: boolean;
+    emergencyWhitelist?: string[];
+    emergencyWhitelistOnly?: boolean;
+    message?: string | null;
+  }) {
+    this.ruleId = fields.ruleId ?? "default-rule";
+    this.version = fields.version ?? 1;
+    this.timestamp = fields.timestamp ?? new Date();
+    this.expiresAt = fields.expiresAt ?? null;
+    this.ttl = fields.ttl ?? 300;
+    this.ipBlacklist = fields.ipBlacklist ?? [];
+    this.ipWhitelist = fields.ipWhitelist ?? [];
+    this.ipBanDuration = fields.ipBanDuration ?? 3600;
+    this.blockedCountries = fields.blockedCountries ?? [];
+    this.whitelistCountries = fields.whitelistCountries ?? [];
+    this.globalRateLimit = fields.globalRateLimit ?? null;
+    this.globalRateWindow = fields.globalRateWindow ?? null;
+    this.endpointRateLimits = fields.endpointRateLimits ?? {};
+    this.blockedCloudProviders = fields.blockedCloudProviders ?? new Set();
+    this.blockedUserAgents = fields.blockedUserAgents ?? [];
+    this.suspiciousPatterns = fields.suspiciousPatterns ?? [];
+    this.enablePenetrationDetection = fields.enablePenetrationDetection ?? null;
+    this.enableIpBanning = fields.enableIpBanning ?? null;
+    this.enableRateLimiting = fields.enableRateLimiting ?? null;
+    this.autoBanThreshold = fields.autoBanThreshold ?? null;
+    this.autoBanDuration = fields.autoBanDuration ?? null;
+    this.enableRateLimitAutoBan = fields.enableRateLimitAutoBan ?? null;
+    this.emergencyMode = fields.emergencyMode ?? false;
+    this.emergencyWhitelist = fields.emergencyWhitelist ?? [];
+    this.emergencyWhitelistOnly = fields.emergencyWhitelistOnly ?? false;
+    this.message = fields.message ?? null;
+  }
+}
+
+function rulesStringArray(value: unknown, field: string): string[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) {
+    throw new InvalidRulesError(`${field} must be an array of strings`);
+  }
+  return value.map((item) => {
+    if (typeof item !== "string") {
+      throw new InvalidRulesError(`${field} must contain only strings`);
+    }
+    return item;
+  });
+}
+
+function rulesOptionalBoolean(value: unknown, field: string): boolean | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "boolean") {
+    throw new InvalidRulesError(`${field} must be a boolean or null`);
+  }
+  return value;
+}
+
+function rulesPositiveInt(value: unknown, field: string): number | null {
+  const parsed = optionalInt(value, field);
+  if (parsed === null) return null;
+  if (parsed < 1) {
+    throw new InvalidRulesError(`${field} must be at least 1`);
+  }
+  return parsed;
+}
+
+function rulesStrictBoolean(
+  value: unknown,
+  field: string,
+  fallback: boolean,
+): boolean {
+  const parsed = rulesOptionalBoolean(value, field);
+  return parsed ?? fallback;
+}
+
+/**
+ * Normalize a rules payload (snake_case wire JSON or camelCase) into a
+ * DynamicRules instance, mirroring the pydantic parse of
+ * `DynamicRules(**response_data)` (guard_agent/_transport_send.py:146).
+ * Unknown fields are ignored (pydantic default); wrong-typed known fields
+ * raise InvalidRulesError, which the transport converts to a null result
+ * exactly like the Python agent's blanket except.
+ */
+export function normalizeDynamicRules(input: unknown): DynamicRules {
+  if (input instanceof DynamicRules) return input;
+  if (!isRecord(input)) {
+    throw new InvalidRulesError("Dynamic rules must be an object");
+  }
+
+  let timestamp = new Date();
+  const rawTimestamp = pick(input, "timestamp", "timestamp");
+  if (rawTimestamp !== undefined && rawTimestamp !== null) {
+    timestamp = parseTimestamp(rawTimestamp, "rule timestamp");
+  }
+
+  let expiresAt: Date | null = null;
+  const rawExpiresAt = pick(input, "expiresAt", "expires_at");
+  if (rawExpiresAt !== undefined && rawExpiresAt !== null) {
+    expiresAt = parseTimestamp(rawExpiresAt, "rule expires_at");
+  }
+
+  const rawRuleId = pick(input, "ruleId", "rule_id");
+  if (rawRuleId !== undefined && rawRuleId !== null && typeof rawRuleId !== "string") {
+    throw new InvalidRulesError("rule_id must be a string");
+  }
+
+  const rawEndpointLimits = pick(
+    input,
+    "endpointRateLimits",
+    "endpoint_rate_limits",
+  );
+  let endpointRateLimits: Record<string, [number, number]> = {};
+  if (rawEndpointLimits !== undefined && rawEndpointLimits !== null) {
+    if (!isRecord(rawEndpointLimits)) {
+      throw new InvalidRulesError("endpoint_rate_limits must be an object");
+    }
+    for (const [endpoint, pair] of Object.entries(rawEndpointLimits)) {
+      if (!Array.isArray(pair) || pair.length !== 2) {
+        throw new InvalidRulesError(
+          `endpoint_rate_limits["${endpoint}"] must be a [requests, window] pair`,
+        );
+      }
+      const requests = optionalInt(pair[0], "endpoint_rate_limits requests");
+      const window = optionalInt(pair[1], "endpoint_rate_limits window");
+      if (requests === null || window === null) {
+        throw new InvalidRulesError(
+          `endpoint_rate_limits["${endpoint}"] must contain two integers`,
+        );
+      }
+      endpointRateLimits[endpoint] = [requests, window];
+    }
+  }
+
+  return new DynamicRules({
+    ruleId: rawRuleId ?? undefined,
+    version: optionalInt(pick(input, "version", "version"), "rule version") ?? undefined,
+    timestamp,
+    expiresAt,
+    ttl: optionalInt(pick(input, "ttl", "ttl"), "rule ttl") ?? undefined,
+    ipBlacklist: rulesStringArray(
+      pick(input, "ipBlacklist", "ip_blacklist"),
+      "ip_blacklist",
+    ),
+    ipWhitelist: rulesStringArray(
+      pick(input, "ipWhitelist", "ip_whitelist"),
+      "ip_whitelist",
+    ),
+    ipBanDuration:
+      optionalInt(pick(input, "ipBanDuration", "ip_ban_duration"), "rule ip_ban_duration") ??
+      undefined,
+    blockedCountries: rulesStringArray(
+      pick(input, "blockedCountries", "blocked_countries"),
+      "blocked_countries",
+    ),
+    whitelistCountries: rulesStringArray(
+      pick(input, "whitelistCountries", "whitelist_countries"),
+      "whitelist_countries",
+    ),
+    globalRateLimit: optionalInt(
+      pick(input, "globalRateLimit", "global_rate_limit"),
+      "rule global_rate_limit",
+    ),
+    globalRateWindow: optionalInt(
+      pick(input, "globalRateWindow", "global_rate_window"),
+      "rule global_rate_window",
+    ),
+    endpointRateLimits,
+    blockedCloudProviders: new Set(
+      rulesStringArray(
+        pick(input, "blockedCloudProviders", "blocked_cloud_providers"),
+        "blocked_cloud_providers",
+      ),
+    ),
+    blockedUserAgents: rulesStringArray(
+      pick(input, "blockedUserAgents", "blocked_user_agents"),
+      "blocked_user_agents",
+    ),
+    suspiciousPatterns: rulesStringArray(
+      pick(input, "suspiciousPatterns", "suspicious_patterns"),
+      "suspicious_patterns",
+    ),
+    enablePenetrationDetection: rulesOptionalBoolean(
+      pick(input, "enablePenetrationDetection", "enable_penetration_detection"),
+      "enable_penetration_detection",
+    ),
+    enableIpBanning: rulesOptionalBoolean(
+      pick(input, "enableIpBanning", "enable_ip_banning"),
+      "enable_ip_banning",
+    ),
+    enableRateLimiting: rulesOptionalBoolean(
+      pick(input, "enableRateLimiting", "enable_rate_limiting"),
+      "enable_rate_limiting",
+    ),
+    autoBanThreshold: rulesPositiveInt(
+      pick(input, "autoBanThreshold", "auto_ban_threshold"),
+      "auto_ban_threshold",
+    ),
+    autoBanDuration: rulesPositiveInt(
+      pick(input, "autoBanDuration", "auto_ban_duration"),
+      "auto_ban_duration",
+    ),
+    enableRateLimitAutoBan: rulesOptionalBoolean(
+      pick(input, "enableRateLimitAutoBan", "enable_rate_limit_auto_ban"),
+      "enable_rate_limit_auto_ban",
+    ),
+    emergencyMode: rulesStrictBoolean(
+      pick(input, "emergencyMode", "emergency_mode"),
+      "emergency_mode",
+      false,
+    ),
+    emergencyWhitelist: rulesStringArray(
+      pick(input, "emergencyWhitelist", "emergency_whitelist"),
+      "emergency_whitelist",
+    ),
+    emergencyWhitelistOnly: rulesStrictBoolean(
+      pick(input, "emergencyWhitelistOnly", "emergency_whitelist_only"),
+      "emergency_whitelist_only",
+      false,
+    ),
+    message: optionalString(pick(input, "message", "message"), "rule message"),
+  });
+}

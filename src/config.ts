@@ -56,6 +56,8 @@ export interface AgentConfig {
   bufferSize: number;
   /** Buffer flush interval in seconds. */
   flushInterval: number;
+  /** Dynamic rule poll interval in seconds (minimum 60). */
+  dynamicRuleInterval: number;
   /** Agent status report interval in seconds (minimum 60). */
   statusInterval: number;
   /** Buffer occupancy ratio that triggers an early flush. */
@@ -159,6 +161,10 @@ export function validateAgentConfig(config: AgentConfig): string[] {
     errors.push("statusInterval must be at least 60 seconds");
   }
 
+  if (config.dynamicRuleInterval < 60) {
+    errors.push("dynamicRuleInterval must be at least 60 seconds");
+  }
+
   if (
     config.highWatermarkRatio <= 0 ||
     config.highWatermarkRatio > 1
@@ -242,6 +248,7 @@ export function resolveAgentConfig(input: AgentConfigInput): AgentConfig {
     projectId: input.projectId ?? null,
     bufferSize: input.bufferSize ?? 100,
     flushInterval: input.flushInterval ?? 30,
+    dynamicRuleInterval: input.dynamicRuleInterval ?? 300,
     statusInterval: input.statusInterval ?? 300,
     highWatermarkRatio: input.highWatermarkRatio ?? 0.8,
     maxConcurrentFlushes: input.maxConcurrentFlushes ?? 1,

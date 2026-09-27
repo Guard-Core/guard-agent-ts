@@ -30,7 +30,7 @@ agent.sendEvent({ kind: "security_event", payload: { /* ... */ } });
 await agent.stop(); // final flush + confirm
 ```
 
-At-least-once delivery, 413 split-or-drop, Retry-After backoff, permanent-rejection handling, degraded-state detection, and optional Redis crash recovery. See [AGENTS.md](AGENTS.md) for the full reliability semantics.
+At-least-once delivery, 413 split-or-drop, Retry-After backoff, permanent-rejection handling, degraded-state detection, TTL-cached dynamic rules polled from `GET /api/v1/rules` on `dynamicRuleInterval` (`agent.getDynamicRules()`), and optional Redis crash recovery. See [AGENTS.md](AGENTS.md) for the full reliability semantics.
 
 ## About
 

@@ -30,7 +30,11 @@ import { createIoredisHandler } from "./redis.js";
 import { HttpTransport } from "./transport.js";
 import type { TransportStats } from "./transport.js";
 import type { AgentStatus, SecurityEvent, SecurityMetric } from "./models.js";
-import { normalizeSecurityEvent, normalizeSecurityMetric } from "./models.js";
+import {
+  DynamicRules,
+  normalizeSecurityEvent,
+  normalizeSecurityMetric,
+} from "./models.js";
 import {
   calculateBackoffDelay,
   fireErrorHook,
@@ -54,8 +58,11 @@ export interface AgentStats {
   metricsFailed: number;
   bufferStats: BufferStats;
   transportStats: TransportStats;
-  loopFailures: { flush: number; status: number };
+  loopFailures: { flush: number; status: number; rules: number };
   lastStatusPushOk: boolean | null;
+  rulesFetched: number;
+  cachedRules: boolean;
+  rulesLastUpdate: number;
 }
 
 export class GuardAgent {
@@ -80,7 +87,12 @@ export class GuardAgent {
 
   private flushConsecutiveFailures = 0;
   private statusConsecutiveFailures = 0;
+  private rulesConsecutiveFailures = 0;
   private lastStatusPushOk: boolean | null = null;
+
+  private cachedRules: DynamicRules | null = null;
+  private rulesLastUpdate = 0;
+  rulesFetched = 0;
 
   private eventsFailureStreak = 0;
   private metricsFailureStreak = 0;
@@ -156,7 +168,11 @@ export class GuardAgent {
       this.running = true;
       this.loopsAbort = new AbortController();
       const signal = this.loopsAbort.signal;
-      this.loops = [this.runFlushLoop(signal), this.runStatusLoop(signal)];
+      this.loops = [
+        this.runFlushLoop(signal),
+        this.runStatusLoop(signal),
+        this.runRulesLoop(signal),
+      ];
 
       this.logger.info("Guard Agent started successfully");
     } catch (error) {
@@ -237,6 +253,26 @@ export class GuardAgent {
         this.lastStatusPushOk = false;
         this.statusConsecutiveFailures += 1;
         this.logLoopFailure("status loop", this.statusConsecutiveFailures, error);
+      }
+    }
+  }
+
+  /**
+   * Rule-sync loop (mirrors _rules_loop, guard_agent/_client_loops.py:103-116):
+   * sleep dynamicRuleInterval, then refresh the rules cache; consecutive
+   * failures are logged (warn below the threshold, error at/above it).
+   */
+  private async runRulesLoop(signal: AbortSignal): Promise<void> {
+    while (this.running && !signal.aborted) {
+      try {
+        await sleep(this.config.dynamicRuleInterval * 1000, signal);
+        if (!this.running || signal.aborted) break;
+        await this.getDynamicRules();
+        this.rulesConsecutiveFailures = 0;
+      } catch (error) {
+        if (signal.aborted) break;
+        this.rulesConsecutiveFailures += 1;
+        this.logLoopFailure("rules loop", this.rulesConsecutiveFailures, error);
       }
     }
   }
@@ -465,6 +501,42 @@ export class GuardAgent {
   }
 
   // ------------------------------------------------------------------
+  // Dynamic rules (mirrors RulesMixin, _client_loops.py:12-38)
+  // ------------------------------------------------------------------
+
+  /**
+   * Return the latest dynamic rules, or null when unavailable (mirrors
+   * get_dynamic_rules, guard_agent/_client_loops.py:19-38). The cached copy
+   * is served while it is younger than its own ttl (seconds); a failed fetch
+   * returns null (the transport logs and returns None in Python) while the
+   * previously fetched rules stay cached for the next successful poll.
+   */
+  async getDynamicRules(): Promise<DynamicRules | null> {
+    const currentTime = nowSeconds();
+
+    if (
+      this.cachedRules !== null &&
+      currentTime - this.rulesLastUpdate < this.cachedRules.ttl
+    ) {
+      return this.cachedRules;
+    }
+
+    try {
+      const rules = await this.transport.fetchDynamicRules();
+      if (rules !== null) {
+        this.cachedRules = rules;
+        this.rulesLastUpdate = currentTime;
+        this.rulesFetched += 1;
+        this.logger.debug("Dynamic rules updated");
+      }
+      return rules;
+    } catch (error) {
+      this.logger.error(`Failed to fetch dynamic rules: ${errorMessage(error)}`);
+      return this.cachedRules;
+    }
+  }
+
+  // ------------------------------------------------------------------
   // Status / stats
   // ------------------------------------------------------------------
 
@@ -535,8 +607,12 @@ export class GuardAgent {
       loopFailures: {
         flush: this.flushConsecutiveFailures,
         status: this.statusConsecutiveFailures,
+        rules: this.rulesConsecutiveFailures,
       },
       lastStatusPushOk: this.lastStatusPushOk,
+      rulesFetched: this.rulesFetched,
+      cachedRules: this.cachedRules !== null,
+      rulesLastUpdate: this.rulesLastUpdate,
     };
   }
 

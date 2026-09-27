@@ -44,6 +44,14 @@ export class InvalidEventError extends GuardAgentError {
   }
 }
 
+/** Thrown when a dynamic-rules payload cannot be normalized into the model. */
+export class InvalidRulesError extends GuardAgentError {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidRulesError";
+  }
+}
+
 /** Raised when an object cannot be serialized to JSON for transport. */
 export class SerializationError extends GuardAgentError {
   constructor(message: string) {
