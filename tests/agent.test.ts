@@ -288,7 +288,7 @@ describe("GuardAgent lifecycle and health", () => {
     const stats = agent.getStats();
     expect(stats.bufferStats.currentEventBufferSize).toBe(1);
     expect(stats.transportStats.circuitBreakerState).toBe("CLOSED");
-    expect(stats.loopFailures).toEqual({ flush: 0, status: 0 });
+    expect(stats.loopFailures).toEqual({ flush: 0, status: 0, rules: 0 });
     expect(stats.lastStatusPushOk).toBeNull();
   });
 

@@ -37,6 +37,7 @@ export {
   ConfigError,
   GuardAgentError,
   InvalidEventError,
+  InvalidRulesError,
   PermanentClientError,
   PayloadTooLargeError,
   RateLimitedError,
@@ -46,10 +47,12 @@ export {
 export {
   type AgentStatus,
   type MetricType,
+  DynamicRules,
   KNOWN_EVENT_TYPES,
   METRIC_TYPES,
   SecurityEvent,
   SecurityMetric,
+  normalizeDynamicRules,
   normalizeSecurityEvent,
   normalizeSecurityMetric,
 } from "./models.js";

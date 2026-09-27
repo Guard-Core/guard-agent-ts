@@ -9,7 +9,7 @@ Version 3.0.2. License MIT. ESM + CJS dual build via tsup; typed public API.
 
 ## Ecosystem Position
 
-- Reports to the Guard Core App ingestion API (`guard-core-app/backend/guard-core-api`): POST /api/v1/events, POST /api/v1/metrics, POST /api/v1/status.
+- Reports to the Guard Core App ingestion API (`guard-core-app/backend/guard-core-api`): POST /api/v1/events, POST /api/v1/metrics, POST /api/v1/status; GET /api/v1/rules for dynamic rules.
 - Consumed by guard-core-ts adapters (Express, Fastify, Hono, NestJS) or any Node app that needs to ship Guard security events.
 - Sibling agents: guard-agent (Python, the reference implementation), guard-agent-rs (Rust). All speak the same ingestion contract.
 - The ingestion contract: X-API-Key + X-Project-Id + X-Agent-Install-Id headers, gzip body compression, HMAC X-Payload-Signature over the UNCOMPRESSED body (the server decompresses and verifies afterward), Retry-After honored on 429, 413 above 262144 decompressed bytes (split-or-drop), 400/404/422 treated as permanent rejection, and a 200 with success:false requeued as a partial failure.
@@ -19,7 +19,7 @@ Version 3.0.2. License MIT. ESM + CJS dual build via tsup; typed public API.
 - `src/config.ts`: AgentConfig with validation and endpoint normalization (mirrors Python AgentConfig.validate_endpoint / validate_config).
 - `src/buffer.ts`: EventBuffer with drop/block/raise overflow policies, high-watermark early flush, maxConcurrentFlushes throttle, and the at-least-once flush/requeue/confirm handshake with Redis keys aligned to the Python agent.
 - `src/transport.ts`: HttpTransport against the ingestion contract (gzip, HMAC signing, Retry-After, 413 split-or-drop, permanent-rejection classification).
-- `src/agent.ts`: GuardAgent client with flush/status loops, per-kind failure streak backoff, degraded-state detection, health checks.
+- `src/agent.ts`: GuardAgent client with flush/status/rules loops, per-kind failure streak backoff, degraded-state detection, health checks, and TTL-cached `getDynamicRules()`.
 - `src/redis.ts` + `src/install-id.ts`: crash-recovery persistence under globally-unique keys with 3600s TTL and startup reload (ioredis optional peer).
 - `src/errors.ts` / `src/logger.ts` / `src/signing.ts` / `src/models.ts` / `src/utils.ts`: typed errors, structured logging, HMAC payload signatures, event models, shared utilities.
 - `examples/basic_usage/`: minimal wiring demo (env-driven config, start, sendEvent, final flush on SIGINT/SIGTERM) with its own README.
@@ -59,7 +59,7 @@ await agent.stop();
 
 ## Configuration
 
-AgentConfig fields (all validated at construction, problems reported together as ConfigError): apiKey (required, min 10 chars), endpoint (default https://api.guard-core.com, trailing slashes and a legacy /api/v1 suffix stripped), projectId, bufferSize (100), flushInterval (30s), statusInterval (300s, min 60), highWatermarkRatio (0.8), maxConcurrentFlushes (1), bufferOverflowPolicy (drop/block/raise), enableEvents/enableMetrics, retryAttempts (3), timeout (30s), backoffFactor, sensitiveHeaders, maxPayloadSize, guardVersion/guardCoreVersion, compressionEnabled/compressionThreshold (true/1024), installId, payloadSigningSecret, onError, logger, and redis ({url, keyPrefix, password, db, commandTimeoutMs}, optional). See src/config.ts for the full typed surface and docs/configuration.md for the table form.
+AgentConfig fields (all validated at construction, problems reported together as ConfigError): apiKey (required, min 10 chars), endpoint (default https://api.guard-core.com, trailing slashes and a legacy /api/v1 suffix stripped), projectId, bufferSize (100), flushInterval (30s), statusInterval (300s, min 60), dynamicRuleInterval (300s, min 60), highWatermarkRatio (0.8), maxConcurrentFlushes (1), bufferOverflowPolicy (drop/block/raise), enableEvents/enableMetrics, retryAttempts (3), timeout (30s), backoffFactor, sensitiveHeaders, maxPayloadSize, guardVersion/guardCoreVersion, compressionEnabled/compressionThreshold (true/1024), installId, payloadSigningSecret, onError, logger, and redis ({url, keyPrefix, password, db, commandTimeoutMs}, optional). See src/config.ts for the full typed surface and docs/configuration.md for the table form.
 
 ## Reliability Semantics
 

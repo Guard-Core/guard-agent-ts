@@ -6,12 +6,13 @@
 import { GuardAgent } from "guardagent";
 
 const agent = new GuardAgent(config); // validates config, restores install id
-await agent.start();                  // starts flush and status loops
+await agent.start();                  // starts flush, status, and rules loops
 agent.sendEvent(ev);                  // enqueue a security event
 agent.sendMetric(m);                  // enqueue a security metric
 await agent.flushBuffer();            // force a flush cycle
 await agent.getStatus();              // current agent status snapshot
-agent.getStats();                     // buffer occupancy, drops, retries
+agent.getStats();                     // buffer occupancy, drops, retries, rules
+await agent.getDynamicRules();        // latest dynamic rules (TTL-cached) or null
 await agent.healthCheck();            // true when the ingestion API is reachable
 await agent.stop();                   // final flush, stop loops, close Redis
 await agent.close();                  // stop plus a final status report
@@ -100,3 +101,28 @@ persisted under a globally-unique key before the send attempt and
 confirmed (deleted) on success, so a crash between buffer and network
 loses nothing. Persisted records carry a 3600s TTL and are reloaded at
 startup. See [Configuration](configuration.md).
+
+## Dynamic rules
+
+`start()` also runs a rule-sync loop: every `dynamicRuleInterval` seconds
+(default 300, minimum 60) the agent polls `GET /api/v1/rules` and caches
+the payload in a `DynamicRules` object. `getDynamicRules()` serves the
+cached copy while it is younger than the server-supplied `ttl`
+(seconds), refetches once it expires, and returns `null` when nothing
+has been fetched yet or the server has no payload; a failed poll keeps
+the last good rules cached for the next cycle and never throws.
+
+The wire payload mirrors the Python agent's `DynamicRules` model
+(guard_agent/models.py): snake_case JSON with ISO-8601 timestamps,
+`endpoint_rate_limits` as `{ endpoint: [requests, window] }` pairs, and
+`blocked_cloud_providers` as an array. It is what the guard-core engine
+consumes through
+`guard_core/handlers/dynamic_rule_handler.py` (`get_dynamic_rules`),
+covering IP black/whitelists and ban duration, country lists, global and
+per-endpoint rate limits, blocked cloud providers and user agents,
+suspicious patterns, the `enable_*` overrides with the `auto_ban_*`
+thresholds, and the emergency-mode triple with the optional rule
+message.
+
+`getStats()` reports `rulesFetched`, `cachedRules`, `rulesLastUpdate`,
+and `loopFailures.rules`.

@@ -45,7 +45,13 @@ import {
   SerializationError,
 } from "./errors.js";
 import type { AgentStatus, SecurityEvent, SecurityMetric } from "./models.js";
-import { eventToWire, metricToWire, statusToWire } from "./models.js";
+import {
+  DynamicRules,
+  eventToWire,
+  metricToWire,
+  normalizeDynamicRules,
+  statusToWire,
+} from "./models.js";
 import { signPayload } from "./signing.js";
 import {
   EncryptionConfigError,
@@ -759,6 +765,84 @@ export class HttpTransport {
     } catch (error) {
       this.logger.error(`Failed to send status: ${errorMessage(error)}`);
       return false;
+    }
+  }
+
+  /**
+   * GET request with retry logic and the circuit breaker (mirrors
+   * _get_with_retry, guard_agent/_transport_send.py:238-289). Returns the
+   * parsed JSON dict, or null when the attempts are exhausted (each
+   * exhaustion path records a failed request exactly like the Python).
+   */
+  private async getWithRetry(
+    endpoint: string,
+  ): Promise<Record<string, unknown> | null> {
+    for (let attempt = 0; attempt <= this.config.retryAttempts; attempt++) {
+      try {
+        if (!this.rateLimiter.acquire()) {
+          const retryAfter = this.rateLimiter.getRetryAfter();
+          this.logger.warn(
+            `Rate limit exceeded, waiting ${retryAfter.toFixed(1)}s`,
+          );
+          await sleep(retryAfter * 1000);
+          continue;
+        }
+
+        const responseData = await this.circuitBreaker.call(() =>
+          this.makeRequest("GET", endpoint, null),
+        );
+
+        if (typeof responseData === "object") {
+          this.requestsSent += 1;
+          return responseData;
+        }
+        this.requestsFailed += 1;
+      } catch (error) {
+        if (error instanceof RateLimitedError) {
+          const delay = Math.min(error.retryAfterSeconds, MAX_RETRY_AFTER_SECONDS);
+          this.logger.warn(
+            `Server rate-limited GET ${endpoint}; sleeping ${delay.toFixed(1)}s per Retry-After`,
+          );
+          if (attempt < this.config.retryAttempts) {
+            await sleep(delay * 1000);
+          } else {
+            this.requestsFailed += 1;
+          }
+          continue;
+        }
+        this.logger.warn(
+          `GET attempt ${attempt + 1} failed for ${endpoint}: ${errorMessage(error)}`,
+        );
+        if (attempt < this.config.retryAttempts) {
+          const delay = calculateBackoffDelay(
+            attempt,
+            this.config.backoffFactor,
+            MAX_RETRY_BACKOFF_SECONDS,
+          );
+          await sleep(delay * 1000);
+        } else {
+          this.requestsFailed += 1;
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Fetch dynamic rules from the SaaS platform (mirrors
+   * fetch_dynamic_rules, guard_agent/_transport_send.py:140-152). Returns
+   * null when the server has no payload or the fetch fails; never throws.
+   */
+  async fetchDynamicRules(): Promise<DynamicRules | null> {
+    try {
+      const responseData = await this.getWithRetry("/api/v1/rules");
+      if (responseData) {
+        return normalizeDynamicRules(responseData);
+      }
+      return null;
+    } catch (error) {
+      this.logger.error(`Failed to fetch dynamic rules: ${errorMessage(error)}`);
+      return null;
     }
   }
 }
