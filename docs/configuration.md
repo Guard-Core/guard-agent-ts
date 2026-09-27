@@ -26,6 +26,7 @@ at once.
 | `installId` | auto | Override the auto-generated install id (`X-Agent-Install-Id`) |
 | `payloadSigningSecret` | `null` | Enables `X-Payload-Signature` (HMAC-SHA256 over the uncompressed body) |
 | `onError` | `null` | Best-effort failure callback; never throws into the host |
+| `projectEncryptionKey` | `null` | Urlsafe-base64 AES-256 key from the core backend. When set, event/metric batches are AES-256-GCM encrypted and POSTed to `/api/v1/events/encrypted`; an invalid key fails startup (no plaintext fallback) |
 | `logger` | built-in default | Injected `AgentLogger` |
 | `redis` | `null` | `{ url, keyPrefix?, password?, db?, commandTimeoutMs? }`; `url` must be `redis://` or `rediss://`, `keyPrefix` defaults to `guard:agent`, `commandTimeoutMs` defaults to 5000. Requires the optional `ioredis` peer |
 
@@ -53,5 +54,6 @@ examples and docs use these names:
 | `GUARD_AGENT_ENDPOINT` | `endpoint` |
 | `GUARD_AGENT_PROJECT_ID` | `projectId` |
 | `GUARD_AGENT_SIGNING_SECRET` | `payloadSigningSecret` |
+| `GUARD_AGENT_ENCRYPTION_KEY` | `projectEncryptionKey` |
 | `GUARD_AGENT_REDIS_URL` | `redis.url` |
 | `GUARD_AGENT_DEBUG` | verbose built-in logger when truthy |

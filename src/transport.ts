@@ -9,6 +9,10 @@
  * - POST {endpoint}/api/v1/events   -> BatchTelemetryRequest  (telemetry_router.py:223)
  * - POST {endpoint}/api/v1/metrics  -> BatchTelemetryRequest  (telemetry_router.py:311)
  * - POST {endpoint}/api/v1/status   -> AgentStatusRequest     (telemetry_router.py:290)
+ * - POST {endpoint}/api/v1/events/encrypted -> EncryptedBatchTelemetryRequest,
+ *   used instead of /events and /metrics when projectEncryptionKey is set;
+ *   the envelope carries {encrypted_payload, batch_id, agent_version,
+ *   guard_version, guard_core_version} (mirrors _post_encrypted)
  * - Auth: X-API-Key required; X-Project-Id optional
  *   (telemetry_router.py:210-217); X-Agent-Install-Id for install tracking
  *   (telemetry_router.py:194); optional X-Payload-Signature HMAC
@@ -43,6 +47,12 @@ import {
 import type { AgentStatus, SecurityEvent, SecurityMetric } from "./models.js";
 import { eventToWire, metricToWire, statusToWire } from "./models.js";
 import { signPayload } from "./signing.js";
+import {
+  EncryptionConfigError,
+  EncryptionError,
+  PayloadEncryptor,
+  createEncryptor,
+} from "./encryption.js";
 import { resolveInstallId } from "./install-id.js";
 import { AGENT_VERSION } from "./version.js";
 import {
@@ -95,6 +105,15 @@ export class HttpTransport {
 
   private initialized = false;
   private defaultHeaders: Record<string, string> = {};
+  private encryptor: PayloadEncryptor | null = null;
+  private encryptionEnabled = false;
+
+  /** Endpoints whose POST bodies are encrypted when a key is configured
+   * (mirrors _transport_dispatch._ENCRYPTED_ENDPOINTS). */
+  private static readonly ENCRYPTED_ENDPOINTS = [
+    "/api/v1/events",
+    "/api/v1/metrics",
+  ] as const;
 
   constructor(config: AgentConfig) {
     this.config = config;
@@ -108,6 +127,8 @@ export class HttpTransport {
   /** Build default headers (mirrors HTTPTransport.initialize). Idempotent. */
   async initialize(): Promise<void> {
     if (this.initialized) return;
+
+    this.initEncryption();
 
     const headers: Record<string, string> = {
       "User-Agent": `guardagent/${AGENT_VERSION}`,
@@ -126,6 +147,36 @@ export class HttpTransport {
   /** Release the transport (mirrors close). */
   async close(): Promise<void> {
     this.initialized = false;
+  }
+
+  /**
+   * Initialize the encryptor when projectEncryptionKey is set. Plaintext
+   * fallback is forbidden: an invalid key or a failed round trip raises
+   * EncryptionConfigError at startup (mirrors
+   * _transport_lifecycle._init_encryption).
+   */
+  private initEncryption(): void {
+    if (!this.config.projectEncryptionKey) {
+      return;
+    }
+    try {
+      this.encryptor = createEncryptor(this.config.projectEncryptionKey);
+      if (!this.encryptor || !this.encryptor.verifyKey()) {
+        throw new EncryptionConfigError(
+          "Encryption round-trip failed at startup; refusing plaintext fallback",
+        );
+      }
+      this.encryptionEnabled = true;
+    } catch (error) {
+      this.encryptor = null;
+      this.encryptionEnabled = false;
+      if (error instanceof EncryptionConfigError) {
+        throw error;
+      }
+      throw new EncryptionConfigError(
+        "Encryption round-trip failed at startup; refusing plaintext fallback",
+      );
+    }
   }
 
   /** Get transport statistics. */
@@ -212,6 +263,9 @@ export class HttpTransport {
 
     try {
       if (method === "POST" && payload) {
+        if (this.isEncryptedTarget(method, endpoint, payload)) {
+          return await this.postEncrypted(payload);
+        }
         return await this.postJson(url, payload);
       }
       if (method === "GET") {
@@ -274,6 +328,91 @@ export class HttpTransport {
     // decompresses before verification, mirroring guard-core-api
     // telemetry_router.py:113-125), so sign the raw JSON bytes
     // regardless of whether the wire body gets compressed.
+    const signature = signPayload(body, this.config.payloadSigningSecret);
+    if (signature !== null) {
+      headers["X-Payload-Signature"] = signature;
+    }
+    if (this.config.compressionEnabled && body.length >= this.config.compressionThreshold) {
+      body = gzipSync(body);
+      headers["Content-Encoding"] = "gzip";
+    }
+    this.bytesSent += body.length;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: new Uint8Array(body),
+      signal: AbortSignal.timeout(this.config.timeout * 1000),
+    });
+    return await this.handleResponse(response, url);
+  }
+
+  /** Whether this POST batch must be encrypted (mirrors
+   * _is_encrypted_target: POST + payload + encryption enabled + one of the
+   * telemetry endpoints). */
+  private isEncryptedTarget(
+    method: "POST" | "GET",
+    endpoint: string,
+    data: BatchWire | null,
+  ): boolean {
+    return (
+      method === "POST" &&
+      data !== null &&
+      Object.keys(data).length > 0 &&
+      this.encryptionEnabled &&
+      (HttpTransport.ENCRYPTED_ENDPOINTS as readonly string[]).includes(endpoint)
+    );
+  }
+
+  /**
+   * Build the encrypted envelope (mirrors _post_encrypted +
+   * _build_encrypted_payload): only the events/metrics arrays are
+   * encrypted; the envelope carries batch_id and version fields in clear.
+   * Serialization failure fires the "encryption" hook and returns false so
+   * the batch is retained, matching the Python dispatch.
+   */
+  private async postEncrypted(
+    data: BatchWire,
+  ): Promise<Record<string, unknown> | boolean> {
+    if (!this.encryptor) {
+      throw new EncryptionError("Encryptor not initialized");
+    }
+    const encryptedUrl = `${this.endpointBase()}/api/v1/events/encrypted`;
+    const encryptedPayload = this.encryptor.encrypt({
+      events: Array.isArray(data["events"]) ? data["events"] : [],
+      metrics: Array.isArray(data["metrics"]) ? data["metrics"] : [],
+    });
+    const envelope: BatchWire = {
+      encrypted_payload: encryptedPayload,
+      batch_id: data["batch_id"],
+      agent_version: AGENT_VERSION,
+      guard_version: this.config.guardVersion,
+      guard_core_version: this.config.guardCoreVersion,
+    };
+    let json: string;
+    try {
+      json = safeJsonStringify(envelope);
+    } catch (error) {
+      if (error instanceof SerializationError) {
+        this.logger.error(
+          `Aborting encrypted POST to ${encryptedUrl}; payload serialization failed and batch retained: ` +
+            `${error.message}`,
+        );
+        fireErrorHook(
+          this.config.onError,
+          this.logger,
+          "encryption",
+          error,
+          { endpoint: encryptedUrl },
+        );
+        return false;
+      }
+      throw error;
+    }
+
+    const url = encryptedUrl;
+    let body: Buffer = Buffer.from(json, "utf8");
+    const headers: Record<string, string> = { ...this.defaultHeaders };
     const signature = signPayload(body, this.config.payloadSigningSecret);
     if (signature !== null) {
       headers["X-Payload-Signature"] = signature;
