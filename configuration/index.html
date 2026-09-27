@@ -569,6 +569,11 @@ at once.</p>
 <td>Best-effort failure callback; never throws into the host</td>
 </tr>
 <tr>
+<td><code>projectEncryptionKey</code></td>
+<td><code>null</code></td>
+<td>Urlsafe-base64 AES-256 key from the core backend. When set, event/metric batches are AES-256-GCM encrypted and POSTed to <code>/api/v1/events/encrypted</code>; an invalid key fails startup (no plaintext fallback)</td>
+</tr>
+<tr>
 <td><code>logger</code></td>
 <td>built-in default</td>
 <td>Injected <code>AgentLogger</code></td>
@@ -619,6 +624,10 @@ examples and docs use these names:</p>
 <tr>
 <td><code>GUARD_AGENT_SIGNING_SECRET</code></td>
 <td><code>payloadSigningSecret</code></td>
+</tr>
+<tr>
+<td><code>GUARD_AGENT_ENCRYPTION_KEY</code></td>
+<td><code>projectEncryptionKey</code></td>
 </tr>
 <tr>
 <td><code>GUARD_AGENT_REDIS_URL</code></td>
