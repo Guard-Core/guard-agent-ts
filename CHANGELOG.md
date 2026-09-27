@@ -3,12 +3,27 @@ Release Notes
 
 ___
 
-Unreleased
-----------
+v3.1.0 (2026-09-27)
+-------------------
+
+The parity release: the dynamic-rules and encrypted-ingest surface ports (v3.1.0)
+----------------------------------------------------------------------------------
+
+### About this release
+
+- **This is the parity release for the Guard agent family.** The 3.1.0 wave (Python, TypeScript, Go, PHP, Rust) ships the same feature surface in every port. Note: the earlier 4.1.0 family tags were a version-accuracy error and were yanked/unpublished; 3.1.0 is the correct version for this train. The conformance corpus (219 cases, spec 4.1.0) validates the shared surface across the ports.
+
+### Added (3.0.2 -> 3.1.0 feature list)
+
+- **AES-256-GCM encrypted ingest.** Event batches can be encrypted end to end with an AES-256-GCM key (`src/encryption.ts`); the server decrypts after transport-level TLS, so batch contents are opaque to intermediaries even on the wire.
+- **Sensitive-header redaction.** Authorization, Cookie, Set-Cookie, and other configured sensitive headers are redacted at ingest and again at egress (`sanitizeHeaders`), so secrets never leave the process in plaintext form.
+- **Dynamic rules.** The agent polls the guard-core server for dynamic rate-limit and ban rules on a configurable interval (`dynamicRuleInterval`, default 300 seconds) and enforces them locally, emitting `dynamic_rule_applied`, `dynamic_rule_updated`, and `dynamic_rule_violation` events.
+- **`on_error` / `max_payload` knobs.** A typed `onError` hook fires per failed pipeline stage (`flush_events`, `flush_metrics`, ...) with the exception and stage context, and `maxPayloadSize` bounds each POST body with automatic payload split.
+- **Helpers.** Shared helpers are exported for adapter authors building custom ingest paths: header sanitization, backoff calculation, `Retry-After` parsing, batch-id generation, IP hashing, payload truncation, and safe JSON serialization.
 
 ### Fixed
 
-- **The wire version stamp now reports the release version (3.0.2) instead of the initial implementation stub.** `AGENT_VERSION` in `src/version.ts` was still hardcoded to `0.1.0` from before the 3.0.2 release train, so the `guardagent/0.1.0` User-Agent header and the `agent_version` batch envelope field lagged the package version (and every other family agent ships 3.0.2). The constant is now derived from `package.json` (inlined by tsup/vitest), so `make bump-version` cannot leave the stamp behind; a derivation test pins the equality.
+- **The wire version stamp now reports the release version instead of the initial implementation stub.** `AGENT_VERSION` in `src/version.ts` was still hardcoded to `0.1.0` from before the 3.0.2 release train, so the `guardagent/0.1.0` User-Agent header and the `agent_version` batch envelope field lagged the package version. The constant is now derived from `package.json` (inlined by tsup/vitest), so `make bump-version` cannot leave the stamp behind; a derivation test pins the equality.
 
 ___
 
