@@ -409,6 +409,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#dynamic-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dynamic rules
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -547,6 +558,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#dynamic-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dynamic rules
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -572,12 +594,13 @@
 <div class="highlight"><pre><span></span><code><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">GuardAgent</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">"guardagent"</span><span class="p">;</span>
 
 <span class="kd">const</span><span class="w"> </span><span class="nx">agent</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">GuardAgent</span><span class="p">(</span><span class="nx">config</span><span class="p">);</span><span class="w"> </span><span class="c1">// validates config, restores install id</span>
-<span class="k">await</span><span class="w"> </span><span class="nx">agent</span><span class="p">.</span><span class="nx">start</span><span class="p">();</span><span class="w">                  </span><span class="c1">// starts flush and status loops</span>
+<span class="k">await</span><span class="w"> </span><span class="nx">agent</span><span class="p">.</span><span class="nx">start</span><span class="p">();</span><span class="w">                  </span><span class="c1">// starts flush, status, and rules loops</span>
 <span class="nx">agent</span><span class="p">.</span><span class="nx">sendEvent</span><span class="p">(</span><span class="nx">ev</span><span class="p">);</span><span class="w">                  </span><span class="c1">// enqueue a security event</span>
 <span class="nx">agent</span><span class="p">.</span><span class="nx">sendMetric</span><span class="p">(</span><span class="nx">m</span><span class="p">);</span><span class="w">                  </span><span class="c1">// enqueue a security metric</span>
 <span class="k">await</span><span class="w"> </span><span class="nx">agent</span><span class="p">.</span><span class="nx">flushBuffer</span><span class="p">();</span><span class="w">            </span><span class="c1">// force a flush cycle</span>
 <span class="k">await</span><span class="w"> </span><span class="nx">agent</span><span class="p">.</span><span class="nx">getStatus</span><span class="p">();</span><span class="w">              </span><span class="c1">// current agent status snapshot</span>
-<span class="nx">agent</span><span class="p">.</span><span class="nx">getStats</span><span class="p">();</span><span class="w">                     </span><span class="c1">// buffer occupancy, drops, retries</span>
+<span class="nx">agent</span><span class="p">.</span><span class="nx">getStats</span><span class="p">();</span><span class="w">                     </span><span class="c1">// buffer occupancy, drops, retries, rules</span>
+<span class="k">await</span><span class="w"> </span><span class="nx">agent</span><span class="p">.</span><span class="nx">getDynamicRules</span><span class="p">();</span><span class="w">        </span><span class="c1">// latest dynamic rules (TTL-cached) or null</span>
 <span class="k">await</span><span class="w"> </span><span class="nx">agent</span><span class="p">.</span><span class="nx">healthCheck</span><span class="p">();</span><span class="w">            </span><span class="c1">// true when the ingestion API is reachable</span>
 <span class="k">await</span><span class="w"> </span><span class="nx">agent</span><span class="p">.</span><span class="nx">stop</span><span class="p">();</span><span class="w">                   </span><span class="c1">// final flush, stop loops, close Redis</span>
 <span class="k">await</span><span class="w"> </span><span class="nx">agent</span><span class="p">.</span><span class="nx">close</span><span class="p">();</span><span class="w">                  </span><span class="c1">// stop plus a final status report</span>
@@ -669,6 +692,27 @@ persisted under a globally-unique key before the send attempt and
 confirmed (deleted) on success, so a crash between buffer and network
 loses nothing. Persisted records carry a 3600s TTL and are reloaded at
 startup. See <a href="../configuration/">Configuration</a>.</p>
+<h2 id="dynamic-rules">Dynamic rules</h2>
+<p><code>start()</code> also runs a rule-sync loop: every <code>dynamicRuleInterval</code> seconds
+(default 300, minimum 60) the agent polls <code>GET /api/v1/rules</code> and caches
+the payload in a <code>DynamicRules</code> object. <code>getDynamicRules()</code> serves the
+cached copy while it is younger than the server-supplied <code>ttl</code>
+(seconds), refetches once it expires, and returns <code>null</code> when nothing
+has been fetched yet or the server has no payload; a failed poll keeps
+the last good rules cached for the next cycle and never throws.</p>
+<p>The wire payload mirrors the Python agent's <code>DynamicRules</code> model
+(guard_agent/models.py): snake_case JSON with ISO-8601 timestamps,
+<code>endpoint_rate_limits</code> as <code>{ endpoint: [requests, window] }</code> pairs, and
+<code>blocked_cloud_providers</code> as an array. It is what the guard-core engine
+consumes through
+<code>guard_core/handlers/dynamic_rule_handler.py</code> (<code>get_dynamic_rules</code>),
+covering IP black/whitelists and ban duration, country lists, global and
+per-endpoint rate limits, blocked cloud providers and user agents,
+suspicious patterns, the <code>enable_*</code> overrides with the <code>auto_ban_*</code>
+thresholds, and the emergency-mode triple with the optional rule
+message.</p>
+<p><code>getStats()</code> reports <code>rulesFetched</code>, <code>cachedRules</code>, <code>rulesLastUpdate</code>,
+and <code>loopFailures.rules</code>.</p>
 
 
 

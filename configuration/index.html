@@ -494,6 +494,11 @@ at once.</p>
 <td>Periodic flush cadence (seconds) and backoff base</td>
 </tr>
 <tr>
+<td><code>dynamicRuleInterval</code></td>
+<td><code>300</code></td>
+<td>Dynamic rule poll cadence (seconds), minimum 60</td>
+</tr>
+<tr>
 <td><code>statusInterval</code></td>
 <td><code>300</code></td>
 <td>Status report cadence (seconds), minimum 60</td>
@@ -592,7 +597,7 @@ at once.</p>
 <li><code>bufferSize</code> and <code>maxConcurrentFlushes</code> must be positive</li>
 <li><code>flushInterval</code>, <code>timeout</code>, <code>backoffFactor</code> must be positive;
   <code>retryAttempts</code> cannot be negative</li>
-<li><code>statusInterval</code> must be at least 60 seconds</li>
+<li><code>statusInterval</code> and <code>dynamicRuleInterval</code> must be at least 60 seconds</li>
 <li><code>highWatermarkRatio</code> must be in the range (0, 1]</li>
 <li><code>compressionThreshold</code> cannot be negative</li>
 <li><code>redis.url</code> must start with <code>redis://</code> or <code>rediss://</code> and
