@@ -147,6 +147,10 @@ type IoredisCtor = new (
  * tolerating the namespace, default, and double-wrapped interop shapes.
  */
 function pickIoredisConstructor(mod: unknown): IoredisCtor | null {
+  // Dynamic import() always resolves to a namespace object under Node, so the
+  // bare-function and primitive shapes below only matter for hypothetical
+  // bundler interops; they are kept for safety but cannot execute here.
+  /* v8 ignore next 2 */
   if (typeof mod === "function") return mod as IoredisCtor;
   if (typeof mod !== "object" || mod === null) return null;
   const record = mod as Record<string, unknown>;

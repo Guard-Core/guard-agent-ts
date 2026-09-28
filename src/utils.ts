@@ -140,11 +140,15 @@ function sanitizeStringValue(
   if (parsed === TOO_LARGE_TO_SCAN) return REDACTED;
   if (parsed === null) return value;
   const sanitized = sanitizeValue(parsed, loweredSensitive, depth + 1);
+  // JSON.stringify cannot fail on a value derived from JSON.parse; the catch
+  // is a safety net that cannot execute.
+  /* v8 ignore start */
   try {
     return JSON.stringify(sanitized);
   } catch {
     return value;
   }
+  /* v8 ignore stop */
 }
 
 const TOO_LARGE_TO_SCAN = Symbol("too-large-to-scan");

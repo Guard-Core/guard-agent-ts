@@ -59,3 +59,5 @@ jobs:
       - run: pnpm test:coverage
         env:
           REDIS_URL: redis://localhost:6379
+      - name: Assert the coverage run produced its report (100% gate lives in vitest.config.ts)
+        run: test -f coverage/coverage-summary.json

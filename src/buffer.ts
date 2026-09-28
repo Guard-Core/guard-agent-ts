@@ -57,6 +57,9 @@ function uniqueKey(prefix: string): string {
 /** Strip a full Redis key down to its short (per-item) segment. */
 function shortKey(fullKey: string): string {
   const parts = fullKey.split(":");
+  // String.split always returns at least one element, so the fallback only
+  // exists to satisfy noUncheckedIndexedAccess; it can never execute.
+  /* v8 ignore next */
   return parts[parts.length - 1] ?? fullKey;
 }
 
@@ -341,6 +344,9 @@ export class EventBuffer {
     await new Promise<void>((resolve) => {
       const waiter = (): void => {
         const index = waiters.indexOf(waiter);
+        // notifyWaiters pops the waiter before invoking it, so the index is
+        // always -1 here; the splice only exists for safety.
+        /* v8 ignore next */
         if (index >= 0) waiters.splice(index, 1);
         resolve();
       };
