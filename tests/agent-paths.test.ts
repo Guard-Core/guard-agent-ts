@@ -360,6 +360,86 @@ describe("GuardAgent flush exception paths", () => {
   });
 });
 
+describe("GuardAgent flush failure streaks without exceptions", () => {
+  it("warns once for a streak of events failures and never raises a false send", async () => {
+    const logger = collectingLogger();
+    const hookErrors: string[] = [];
+    const agent = newAgent({
+      flushInterval: 300,
+      retryAttempts: 0,
+      logger,
+      onError: (stage: string) => hookErrors.push(stage),
+    });
+    // Transient failure the transport reports as false instead of throwing:
+    // the batch requeues with no exception routed through flushBuffer.
+    overrideTransport(agent, { sendEvents: async () => false });
+    await agent.sendEvent(event(1));
+    await agent.flushBuffer();
+    expect(agent.eventsFailed).toBe(1);
+    expect(agent.buffer.getBufferSize()).toBe(1);
+    expect(
+      logger.warnings().filter((m) => m.includes("Failed to send 1 events")),
+    ).toHaveLength(1);
+    expect(logger.errors().some((m) => m.includes("Transport raised sending events"))).toBe(
+      false,
+    );
+    expect(hookErrors).not.toContain("flush_events");
+
+    // Second consecutive failure: the backoff warning stays at the first one.
+    (agent as unknown as { eventsRetryAfter: number }).eventsRetryAfter = 0;
+    await agent.flushBuffer();
+    expect(agent.eventsFailed).toBe(2);
+    expect(
+      logger.warnings().filter((m) => m.includes("Failed to send 1 events")),
+    ).toHaveLength(1);
+  });
+
+  it("warns once for a streak of metrics failures reported as false", async () => {
+    const logger = collectingLogger();
+    const agent = newAgent({ flushInterval: 300, retryAttempts: 0, logger });
+    overrideTransport(agent, { sendMetrics: async () => false });
+    await agent.sendMetric(metric(1));
+    await agent.flushBuffer();
+    expect(agent.metricsFailed).toBe(1);
+    expect(
+      logger.warnings().filter((m) => m.includes("Failed to send 1 metrics")),
+    ).toHaveLength(1);
+    expect(logger.errors().some((m) => m.includes("Transport raised sending metrics"))).toBe(
+      false,
+    );
+
+    (agent as unknown as { metricsRetryAfter: number }).metricsRetryAfter = 0;
+    await agent.flushBuffer();
+    expect(agent.metricsFailed).toBe(2);
+    expect(
+      logger.warnings().filter((m) => m.includes("Failed to send 1 metrics")),
+    ).toHaveLength(1);
+    restoreTransport(agent, "sendMetrics");
+  });
+
+  it("degrades status when the failure rate climbs above ten percent", async () => {
+    const agent = newAgent({ flushInterval: 300, retryAttempts: 0 });
+    overrideTransport(agent, { sendEvents: async () => false });
+    await agent.sendEvent(event(1));
+    await agent.flushBuffer();
+    const degraded = await agent.getStatus();
+    expect(degraded.status).toBe("degraded");
+    expect(degraded.eventsFailed).toBe(1);
+    expect(degraded.errors.some((e) => e.includes("High failure rate: 100.0%"))).toBe(true);
+    restoreTransport(agent, "sendEvents");
+
+    // Once successful sends dilute the failure rate back under ten percent,
+    // the same snapshot reports healthy again.
+    for (let i = 2; i <= 11; i++) await agent.sendEvent(event(i));
+    (agent as unknown as { eventsRetryAfter: number }).eventsRetryAfter = 0;
+    await agent.flushBuffer();
+    expect(agent.eventsSent).toBe(11);
+    const healthy = await agent.getStatus();
+    expect(healthy.status).toBe("healthy");
+    expect(healthy.errors).toEqual([]);
+  });
+});
+
 describe("GuardAgent dynamic rules cache", () => {
   it("serves the cached rules when the fetch fails and null when there is no cache", async () => {
     const agent = newAgent();

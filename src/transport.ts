@@ -215,11 +215,16 @@ export class HttpTransport {
     const events = data["events"];
     if (Array.isArray(events)) {
       for (const event of events) {
+        // The wire batch is built by eventToWire, so every entry is a plain
+        // object; the shape guard only exists for safety at this boundary
+        // and can never take its false arm.
+        /* v8 ignore start */
         if (
           typeof event === "object" &&
           event !== null &&
           !Array.isArray(event)
         ) {
+        /* v8 ignore stop */
           const record = event as Record<string, unknown>;
           const metadata = record["metadata"];
           if (typeof metadata === "object" && metadata !== null && !Array.isArray(metadata)) {
@@ -234,11 +239,14 @@ export class HttpTransport {
     const metrics = data["metrics"];
     if (Array.isArray(metrics)) {
       for (const metric of metrics) {
+        // Same as above: metricToWire always produces plain objects.
+        /* v8 ignore start */
         if (
           typeof metric === "object" &&
           metric !== null &&
           !Array.isArray(metric)
         ) {
+        /* v8 ignore stop */
           const record = metric as Record<string, unknown>;
           const tags = record["tags"];
           if (typeof tags === "object" && tags !== null && !Array.isArray(tags)) {
@@ -723,6 +731,9 @@ export class HttpTransport {
           `even as a single item: ${error.detail}`,
       );
       this.requestsFailed += 1;
+      // The error is a PayloadTooLargeError narrowed by the caller, so the
+      // instanceof check is always true and its false arm cannot execute.
+      /* v8 ignore start */
       if (error instanceof Error) {
         fireErrorHook(
           this.config.onError,
@@ -732,6 +743,7 @@ export class HttpTransport {
           { dataType, itemCount: items.length },
         );
       }
+      /* v8 ignore stop */
       return true;
     }
     const midpoint = Math.floor(items.length / 2);
@@ -751,6 +763,9 @@ export class HttpTransport {
         `(${error.statusCode}): ${error.detail}`,
     );
     this.requestsFailed += 1;
+    // The error is a PermanentClientError narrowed by the caller, so the
+    // instanceof check is always true and its false arm cannot execute.
+    /* v8 ignore start */
     if (error instanceof Error) {
       fireErrorHook(
         this.config.onError,
@@ -760,6 +775,7 @@ export class HttpTransport {
         { dataType, itemCount: items.length },
       );
     }
+    /* v8 ignore stop */
   }
 
   /** Send agent status/health information (mirrors send_status). */
