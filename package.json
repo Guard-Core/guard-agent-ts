@@ -62,11 +62,11 @@
     }
   },
   "devDependencies": {
-    "@types/node": "^24.10.1",
+    "@types/node": "^26.6.3",
     "@vitest/coverage-v8": "^5.0.2",
-    "ioredis": "^5.8.2",
+    "ioredis": "^6.0.0",
     "tsup": "^8.5.1",
-    "typescript": "^5.9.3",
+    "typescript": "^7.0.2",
     "vitest": "^5.0.2"
   },
   "packageManager": "pnpm@10.25.0",
