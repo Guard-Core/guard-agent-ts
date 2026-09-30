@@ -59,8 +59,11 @@ function shortKey(fullKey: string): string {
   const parts = fullKey.split(":");
   // String.split always returns at least one element, so the fallback only
   // exists to satisfy noUncheckedIndexedAccess; it can never execute.
-  /* v8 ignore next */
+  // (start/stop hints are parsed from the original source; "ignore next" is
+  // dropped from the transpiled code and never reaches the coverage remap.)
+  /* v8 ignore start */
   return parts[parts.length - 1] ?? fullKey;
+  /* v8 ignore stop */
 }
 
 export interface BufferStats {
@@ -336,7 +339,11 @@ export class EventBuffer {
   private notifyWaiters(waiters: Waiter[]): void {
     while (waiters.length > 0) {
       const waiter = waiters.pop();
+      // pop() on a non-empty array is always defined; the guard only exists
+      // for the type checker and can never take its false arm.
+      /* v8 ignore start */
       if (waiter) waiter();
+      /* v8 ignore stop */
     }
   }
 
@@ -346,8 +353,9 @@ export class EventBuffer {
         const index = waiters.indexOf(waiter);
         // notifyWaiters pops the waiter before invoking it, so the index is
         // always -1 here; the splice only exists for safety.
-        /* v8 ignore next */
+        /* v8 ignore start */
         if (index >= 0) waiters.splice(index, 1);
+        /* v8 ignore stop */
         resolve();
       };
       waiters.push(waiter);

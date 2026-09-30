@@ -150,9 +150,12 @@ function pickIoredisConstructor(mod: unknown): IoredisCtor | null {
   // Dynamic import() always resolves to a namespace object under Node, so the
   // bare-function and primitive shapes below only matter for hypothetical
   // bundler interops; they are kept for safety but cannot execute here.
-  /* v8 ignore next 2 */
+  // (start/stop hints are parsed from the original source; "ignore next" is
+  // dropped from the transpiled code and never reaches the coverage remap.)
+  /* v8 ignore start */
   if (typeof mod === "function") return mod as IoredisCtor;
   if (typeof mod !== "object" || mod === null) return null;
+  /* v8 ignore stop */
   const record = mod as Record<string, unknown>;
   const nested = record["default"];
   if (typeof nested === "function") return nested as IoredisCtor;

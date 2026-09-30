@@ -17,6 +17,7 @@ const ioredisState = vi.hoisted(() => ({
 type IoredisShape =
   | "default-fn"
   | "nested-default"
+  | "null-default"
   | "empty"
   | "default-object"
   | "boom";
@@ -38,6 +39,8 @@ function mockIoredis(mode: IoredisShape): void {
     switch (mode) {
       case "nested-default":
         return { default: { default: FakeRedis } };
+      case "null-default":
+        return { default: null };
       case "empty":
         return {};
       case "default-object":
@@ -217,6 +220,14 @@ describe("createIoredisHandler module interop", () => {
     const create = await freshCreate();
     const handler = await create({ url: "redis://localhost:6379", logger: collectingLogger() });
     expect(typeof handler.delete).toBe("function");
+  });
+
+  it("treats a null default export as a missing constructor", async () => {
+    mockIoredis("null-default");
+    const create = await freshCreate();
+    await expect(
+      create({ url: "redis://localhost:6379", logger: collectingLogger() }),
+    ).rejects.toThrow("Redis persistence requested but ioredis is not installed");
   });
 
   it("throws a configuration error when no constructor can be found", async () => {

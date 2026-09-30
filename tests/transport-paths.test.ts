@@ -8,7 +8,7 @@
 import { createServer, type Server, type IncomingMessage } from "node:http";
 import { randomBytes } from "node:crypto";
 import type { AddressInfo } from "node:net";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { resolveAgentConfig, type AgentConfigInput } from "../src/config.js";
 import { normalizeSecurityEvent, normalizeSecurityMetric } from "../src/models.js";
@@ -370,5 +370,71 @@ describe("HttpTransport response body edge", () => {
         }
       ).handleResponse(broken, `${baseUrl}/api/v1/events`),
     ).rejects.toThrow("Server error 500");
+  });
+});
+
+describe("HttpTransport header redaction boundary", () => {
+  it("leaves non-object event metadata untouched instead of redacting it", async () => {
+    const client = transport({ retryAttempts: 0 });
+    await client.initialize();
+    // Hostile model at the transport boundary: a normalized event whose
+    // metadata property reads back as a string. The redaction pass must skip
+    // it (no crash, no sanitizeHeaders call) and still deliver the batch.
+    const poisoned = normalizeSecurityEvent(makeEvent());
+    Object.defineProperty(poisoned, "metadata", { get: () => "not-an-object" });
+    expect(await client.sendEvents([poisoned])).toBe(true);
+    const bodies = server
+      .requestsFor("/api/v1/events")
+      .map((request) => request.body as { events?: [{ metadata?: unknown }] });
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]?.events?.[0]?.metadata).toBe("not-an-object");
+  });
+
+  it("leaves non-object metric tags untouched instead of redacting them", async () => {
+    const client = transport({ retryAttempts: 0 });
+    await client.initialize();
+    const poisoned = normalizeSecurityMetric({
+      metricType: "request_count",
+      value: 1,
+      timestamp: new Date(),
+    });
+    Object.defineProperty(poisoned, "tags", { get: () => 42 });
+    expect(await client.sendMetrics([poisoned])).toBe(true);
+    const bodies = server
+      .requestsFor("/api/v1/metrics")
+      .map((request) => request.body as { metrics?: [{ tags?: unknown }] });
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]?.metrics?.[0]?.tags).toBe(42);
+  });
+});
+
+describe("HttpTransport non-Error retry exhaustion", () => {
+  it("skips the error hook when the final rejection is not an Error", async () => {
+    const logger = collectingLogger();
+    const hookErrors: string[] = [];
+    const client = transport({
+      logger,
+      retryAttempts: 1,
+      backoffFactor: 0.01,
+      onError: (stage: string) => hookErrors.push(stage),
+    });
+    await client.initialize();
+    vi.stubGlobal(
+      "fetch",
+      () => Promise.reject("upstream socket vanished"),
+    );
+    try {
+      expect(await client.sendEvents(events(1))).toBe(false);
+      expect(client.requestsFailed).toBe(1);
+      expect(hookErrors).toEqual([]);
+      expect(
+        logger.warnings().some((m) => m.includes("Attempt 1 failed for events")),
+      ).toBe(true);
+      expect(
+        logger.errors().some((m) => m.includes("All retry attempts failed for events")),
+      ).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

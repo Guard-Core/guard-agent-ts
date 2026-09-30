@@ -237,3 +237,19 @@ describe("CircuitBreaker", () => {
     expect(breaker.failureCount).toBe(0);
   });
 });
+
+describe("PermanentClientError message", () => {
+  it("appends the detail when one is given", () => {
+    const withDetail = new PermanentClientError(422, "invalid batch");
+    expect(withDetail.message).toBe("Permanent client error 422: invalid batch");
+    expect(withDetail.statusCode).toBe(422);
+    expect(withDetail.detail).toBe("invalid batch");
+  });
+
+  it("omits the detail separator when the error has no detail", () => {
+    const withoutDetail = new PermanentClientError(400);
+    expect(withoutDetail.message).toBe("Permanent client error 400");
+    expect(withoutDetail.statusCode).toBe(400);
+    expect(withoutDetail.detail).toBe("");
+  });
+});

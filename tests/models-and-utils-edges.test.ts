@@ -119,6 +119,20 @@ describe("model normalization edge cases", () => {
     expect(() =>
       normalizeSecurityMetric({
         metricType: "request_count",
+        value: "   ",
+        timestamp: new Date(),
+      }),
+    ).toThrow("value must be a finite number or null");
+    expect(() =>
+      normalizeSecurityMetric({
+        metricType: "request_count",
+        value: "not-a-number",
+        timestamp: new Date(),
+      }),
+    ).toThrow("value must be a finite number or null");
+    expect(() =>
+      normalizeSecurityMetric({
+        metricType: "request_count",
         value: 1,
         timestamp: new Date(),
         tags: "nope",
