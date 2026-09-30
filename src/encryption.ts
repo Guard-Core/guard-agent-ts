@@ -127,10 +127,11 @@ export class PayloadEncryptor {
     } catch (error) {
       // Buffer.from only ever throws Error subclasses here, so the String()
       // arm of the ternary is a safety net that cannot execute.
-      /* v8 ignore next 4 */
+      /* v8 ignore start */
       throw new EncryptionError(
         `Invalid project key format: ${error instanceof Error ? error.message : String(error)}`,
       );
+      /* v8 ignore stop */
     }
     if (keyBytes.length !== KEY_SIZE) {
       throw new EncryptionError(
@@ -166,8 +167,9 @@ export class PayloadEncryptor {
     } catch (error) {
       // Nothing inside the try raises EncryptionError directly, so the
       // re-throw arm is a guard that cannot execute.
-      /* v8 ignore next */
+      /* v8 ignore start */
       if (error instanceof EncryptionError) throw error;
+      /* v8 ignore stop */
       throw new EncryptionError(
         `Failed to encrypt payload: ${error instanceof Error ? error.message : String(error)}`,
       );

@@ -228,6 +228,34 @@ describe("EventBuffer overflow policy edges", () => {
     await pending;
   });
 
+  it("leaves a stale block-poll timer behind when a writer is notified first", async () => {
+    // The waiter resolves through notifyWaiters as soon as space frees; the
+    // 500ms poll timeout it scheduled still fires afterwards and must find
+    // the queue consistent (waiter already popped, nothing to splice, no
+    // second resolve observable).
+    const buffer = newBuffer({ bufferSize: 1, bufferOverflowPolicy: "block" });
+    await buffer.addEvent(event(1));
+    const pending = buffer.addEvent(event(2));
+    await settle(30); // let the writer register its poll timer
+    await buffer.flushEventsWithKeys(); // notify the writer early
+    await pending;
+    await settle(550); // longer than BLOCK_POLICY_POLL_INTERVAL_MS
+    expect(buffer.getBufferSize()).toBe(1);
+    expect(buffer.getStats().eventsDropped).toBe(0);
+  });
+
+  it("logs only the first metric drop of each drop-log interval", async () => {
+    const logger = collectingLogger();
+    const buffer = newBuffer({ bufferSize: 1, logger });
+    await buffer.addMetric(metric(1));
+    await buffer.addMetric(metric(2)); // drop #1 (count % 100 === 1): warned
+    await buffer.addMetric(metric(3)); // drop #2 (count % 100 === 2): silent
+    expect(buffer.getStats().metricsDropped).toBe(2);
+    expect(
+      logger.warnings().filter((m) => m.includes("dropping oldest metric")),
+    ).toHaveLength(1);
+  });
+
   it("raises BufferFullError for metrics under the raise policy", async () => {
     const buffer = newBuffer({ bufferSize: 1, bufferOverflowPolicy: "raise" });
     await buffer.addMetric(metric(1));

@@ -204,7 +204,12 @@ export class GuardAgent {
       const handler: RedisHandler = this.redisHandler;
       this.redisHandler = null;
       this.ownsRedisHandler = false;
+      // Only createIoredisHandler sets ownsRedisHandler, and an IoredisHandler
+      // always defines close(); the optional-call guard cannot take its false
+      // arm.
+      /* v8 ignore start */
       if (handler.close) await handler.close();
+      /* v8 ignore stop */
     }
 
     this.logger.info("Guard Agent stopped");
