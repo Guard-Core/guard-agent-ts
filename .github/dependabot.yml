@@ -16,3 +16,12 @@ updates:
       npm:
         patterns:
           - "*"
+    # tsup 8.5.1 (latest) bundles rollup-plugin-dts 6.1.1, whose supported
+    # typescript range ends at ^5.0; the ts7 native compiler's js api surface
+    # crashes the dts bundling step in `pnpm build` with
+    # "Cannot read properties of undefined (reading 'useCaseSensitiveFileNames')".
+    # hold typescript on 5.x until tsup ships rollup-plugin-dts >= 6.5 (ts7-ready).
+    ignore:
+      - dependency-name: typescript
+        versions:
+          - ">=6"
