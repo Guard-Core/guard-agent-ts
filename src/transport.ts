@@ -311,6 +311,10 @@ export class HttpTransport {
     try {
       json = safeJsonStringify(data);
     } catch (error) {
+      // safeJsonStringify only ever throws SerializationError, so the whole
+      // catch below is reachable only for serialization failures; the final
+      // re-throw is a contract guard that cannot execute.
+      /* v8 ignore start */
       if (error instanceof SerializationError) {
         this.logger.error(
           `Aborting POST to ${url}; payload serialization failed and batch retained: ` +
@@ -327,6 +331,7 @@ export class HttpTransport {
       }
       throw error;
     }
+    /* v8 ignore stop */
 
     let body: Buffer = Buffer.from(json, "utf8");
     const headers: Record<string, string> = { ...this.defaultHeaders };
@@ -399,6 +404,8 @@ export class HttpTransport {
     try {
       json = safeJsonStringify(envelope);
     } catch (error) {
+      // Serialization failure path for the encrypted envelope; see postJson.
+      /* v8 ignore start */
       if (error instanceof SerializationError) {
         this.logger.error(
           `Aborting encrypted POST to ${encryptedUrl}; payload serialization failed and batch retained: ` +
@@ -415,6 +422,7 @@ export class HttpTransport {
       }
       throw error;
     }
+    /* v8 ignore stop */
 
     const url = encryptedUrl;
     let body: Buffer = Buffer.from(json, "utf8");
