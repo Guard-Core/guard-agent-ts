@@ -3,6 +3,31 @@ Release Notes
 
 ___
 
+v3.2.0 (2026-10-01)
+-------------------
+
+The hardening release: full coverage, scaffold baseline, and audit-clean dev deps (v3.2.0)
+------------------------------------------------------------------------------------------
+
+### About this release
+
+- **A maintenance release for the 4.3.0 train.** There are no runtime behavior changes in this version: every `src/` delta since 3.1.0 is either a coverage hint or a comment. The release exists so consumers on the Guard 4.3.0 train pick up the audit-clean toolchain, the repo governance baseline, and the 100%-coverage test suite in a tagged, npm-published artifact.
+
+### Changed (3.1.0 -> 3.2.0)
+
+- **Dev dependency bumps and audit fixes.** `vitest` and `@vitest/coverage-v8` move to 5.x, `@types/node` to 26.x, and the dev-only `ioredis` to 6.x (the optional `ioredis` peer dependency stays at `^5.0.0`, so consumer-facing requirements are unchanged); an `esbuild` override (`^0.28.2`) clears its audit advisory. `typescript` is deliberately held on the 5.x line because tsup's dts bundler crashes on the TypeScript 7 API.
+- **Repo scaffold baseline.** Adopted the guard-core process baseline: issue templates, pull request template, `dependabot.yml`, `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, `SECURITY.md`, and CI/release/scheduled-lint workflow updates.
+
+### Testing
+
+- **Branch and statement coverage closed to 100% and gated.** New suites (`agent-paths`, `buffer-paths`, `encryption-edges`, `models-and-utils-edges`, `redis-adapter`, `transport-encryption`, `transport-paths`, `utils`) pin the previously uncovered paths; `vitest` thresholds and CI now fail below 100%. Unreachable-by-contract defensive arms in `src/` are annotated with `v8 ignore` hints and explanatory comments rather than distorting the code.
+
+### Compatibility
+
+- **No dependency on `@guardcore/core`.** The agent talks to the guard-core-app ingestion API over HTTP and intentionally declares no dependency on the core engine (neither registry nor peer), so no `@guardcore/core` floor applies to this package; it stays installable alongside any core version, including 4.3.0.
+
+___
+
 v3.1.0 (2026-09-27)
 -------------------
 
