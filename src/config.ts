@@ -9,6 +9,7 @@
  */
 import { ConfigError } from "./errors.js";
 import type { AgentLogger } from "./logger.js";
+import { stripTrailingSlashes } from "./utils.js";
 import { resolveLogger } from "./logger.js";
 
 /** Overflow behavior when the in-memory buffer is full. */
@@ -217,9 +218,9 @@ export function normalizeEndpoint(
     throw new ConfigError("Endpoint URL must use http or https scheme");
   }
 
-  const normalized = endpoint.replace(/\/+$/, "");
+  const normalized = stripTrailingSlashes(endpoint);
   if (normalized.endsWith("/api/v1")) {
-    const stripped = normalized.slice(0, -"/api/v1".length).replace(/\/+$/, "");
+    const stripped = stripTrailingSlashes(normalized.slice(0, -"/api/v1".length));
     if (!endpointSuffixWarned) {
       logger.warn(
         `Endpoint '${endpoint}' ends with '/api/v1'; transport already appends ` +
