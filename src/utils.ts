@@ -385,3 +385,19 @@ export class CircuitBreaker {
     }
   }
 }
+
+/**
+ * Strip every trailing '/' from a value.
+ *
+ * A linear scan instead of `replace(/\/+$/, "")`: the endpoint reaches this
+ * from user configuration, and CodeQL (js/polynomial-redos) flags anchored
+ * quantifier regexes over uncontrolled data. Behavior is identical - all
+ * trailing slashes are removed, none added.
+ */
+export function stripTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === "/") {
+    end--;
+  }
+  return value.slice(0, end);
+}

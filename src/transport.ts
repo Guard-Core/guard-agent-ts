@@ -74,6 +74,7 @@ import {
   sanitizeHeaders,
   sleep,
   summarizeResponseBody,
+  stripTrailingSlashes,
 } from "./utils.js";
 
 const NON_RETRYABLE_STATUS_CODES = [400, 404, 413, 422] as const;
@@ -202,7 +203,7 @@ export class HttpTransport {
   // ------------------------------------------------------------------
 
   private endpointBase(): string {
-    return this.config.endpoint.replace(/\/+$/, "");
+    return stripTrailingSlashes(this.config.endpoint);
   }
 
   /**
