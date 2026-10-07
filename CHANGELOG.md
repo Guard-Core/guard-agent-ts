@@ -3,6 +3,26 @@ Release Notes
 
 ___
 
+v3.2.1 (2026-10-07)
+-------------------
+
+The ReDoS hardening release: linear endpoint normalization (v3.2.1)
+--------------------------------------------------------------------
+
+### About this release
+
+- **A security fix release for the 4.3.x train.** Clears the CodeQL `js/polynomial-redos` (high) finding on the endpoint normalization path. The `guardagent` package ships no runtime dependency surface changes and no behavior changes beyond the internals of trailing-slash stripping, which is observably identical.
+
+### Fixed (3.2.0 -> 3.2.1)
+
+- **js/polynomial-redos: linear `stripTrailingSlashes` replaces anchored quantifier regexes.** CodeQL flagged `replace(/\/+$/, "")` over endpoint URLs because the value comes from user configuration: an anchored quantifier over uncontrolled input is a polynomial ReDoS candidate. The new `stripTrailingSlashes` helper in `src/utils.ts` is a plain backward scan, linear by construction, with identical behavior (every trailing slash removed, none added). All three regex call sites in `src/config.ts` (`normalizeEndpoint`) and `src/transport.ts` (`endpointBase`) now use it.
+
+### Compatibility
+
+- **Drop-in.** Same public API, same `normalizeEndpoint` semantics, no dependency on `@guardcore/core` (unchanged from 3.2.0, so no core floor applies). Consumers on 3.2.0 can move to 3.2.1 with no code or config changes.
+
+___
+
 v3.2.0 (2026-10-01)
 -------------------
 
