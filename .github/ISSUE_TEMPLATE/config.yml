@@ -1,10 +1,10 @@
 blank_issues_enabled: false
 contact_links:
-  - name: FastAPI Guard Documentation
-    url: https://rennf93.github.io/fastapi-guard/
+  - name: Guard Agent TS Documentation
+    url: https://guard-core.github.io/guard-agent-ts/
     about: Check the documentation for usage information and tutorials
   - name: Usage Questions
-    url: https://github.com/rennf93/fastapi-guard/discussions
+    url: https://github.com/Guard-Core/guard-agent-ts/discussions
     about: Please ask and answer questions in GitHub Discussions
   - name: Discord
     url: https://discord.gg/ZW7ZJbjMkK
