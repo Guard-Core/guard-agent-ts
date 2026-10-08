@@ -13,13 +13,13 @@
   ],
   "author": "Renzo Franceschini <rennf93@gmail.com>",
   "license": "MIT",
-  "homepage": "https://github.com/rennf93/guard-agent-ts",
+  "homepage": "https://github.com/Guard-Core/guard-agent-ts",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/rennf93/guard-agent-ts.git"
+    "url": "git+https://github.com/Guard-Core/guard-agent-ts.git"
   },
   "bugs": {
-    "url": "https://github.com/rennf93/guard-agent-ts/issues"
+    "url": "https://github.com/Guard-Core/guard-agent-ts/issues"
   },
   "type": "module",
   "main": "./dist/index.cjs",

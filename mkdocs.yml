@@ -1,8 +1,8 @@
 site_name: guard-agent-ts
 site_description: TypeScript telemetry agent reporting to the Guard Core App ingestion API
 site_author: Renn F
-repo_url: https://github.com/rennf93/guard-agent-ts
-repo_name: rennf93/guard-agent-ts
+repo_url: https://github.com/Guard-Core/guard-agent-ts
+repo_name: Guard-Core/guard-agent-ts
 
 theme:
   name: material

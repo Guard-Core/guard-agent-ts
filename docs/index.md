@@ -3,12 +3,12 @@
 `guard-agent-ts` (npm package `guardagent`) is the TypeScript telemetry
 agent of the Guard ecosystem. It buffers security events, metrics, and
 agent status produced by your application (typically through
-[guard-core-ts](https://github.com/rennf93/guard-core-ts) adapters) and
+[guard-core-ts](https://github.com/Guard-Core/guard-core-ts) adapters) and
 ships them to the
-[guard-core-app](https://github.com/rennf93/guard-core-app) ingestion API
+[guard-core-app](https://github.com/Guard-Core/guard-core-app) ingestion API
 with at-least-once delivery.
 
-It is a port of the normative [guard-agent](https://github.com/rennf93/guard-agent)
+It is a port of the normative [guard-agent](https://github.com/Guard-Core/guard-agent)
 (Python) semantics: per-kind buffers, periodic and watermark-driven
 flushes, overflow policies, retry with backoff, 413 batch split-or-drop,
 Retry-After honoring, a circuit breaker, optional Redis-backed queue
@@ -57,4 +57,4 @@ expose an agent handler seam where the event construction belongs. See
 [Configuration](configuration.md) for every config field.
 
 For a minimal runnable wiring demo, see
-[examples/basic_usage](https://github.com/rennf93/guard-agent-ts/tree/master/examples/basic_usage).
+[examples/basic_usage](https://github.com/Guard-Core/guard-agent-ts/tree/master/examples/basic_usage).
