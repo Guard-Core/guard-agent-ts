@@ -1,10 +1,62 @@
-# guardagent
+<p align="center">
+    <a href="https://guard-core.github.io/guard-core/latest/">
+        <img src="https://guard-core.github.io/guard-core/latest/assets/guard_core_legend.svg" alt="Guard Core">
+    </a>
+</p>
 
-Telemetry & Monitoring Agent for the [guard ecosystem](https://github.com/rennf93) (TypeScript / Node.js). Companion agent to [guard-core-ts](https://github.com/Guard-Core/guard-core-ts) and its thin adapters.
+___
 
-Docs: <https://guard-core.github.io/guard-agent-ts/>
+<p align="center">
+    <strong>Telemetry & Monitoring Agent for the [guard ecosystem](https://github.com/rennf93) (TypeScript / Node.js). Companion agent to [guard-core-ts](https://github.com/Guard-Core/guard-core-ts) and its thin adapters.</strong>
+</p>
 
-**Status:** Released (v3.0.2 on npm). TypeScript port of the [guard-agent](https://github.com/Guard-Core/guard-agent) semantics, reporting to the Guard Core App ingestion API.
+<p align="center">
+    <a href="https://www.npmjs.com/package/guardagent">
+        <img src="https://img.shields.io/npm/v/guardagent?color=0080ff" alt="npm version">
+    </a>
+    <a href="https://guard-core.github.io/guard-agent-ts/latest/">
+        <img src="https://img.shields.io/badge/docs-latest-0080ff.svg" alt="Docs">
+    </a>
+    <a href="https://github.com/Guard-Core/guard-agent-ts/actions/workflows/release.yml">
+        <img src="https://github.com/Guard-Core/guard-agent-ts/actions/workflows/release.yml/badge.svg" alt="Release">
+    </a>
+    <a href="https://opensource.org/licenses/MIT">
+        <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License">
+    </a>
+    <a href="https://github.com/Guard-Core/guard-agent-ts/actions/workflows/ci.yml">
+        <img src="https://github.com/Guard-Core/guard-agent-ts/actions/workflows/ci.yml/badge.svg" alt="CI">
+    </a>
+    <a href="https://github.com/Guard-Core/guard-agent-ts/actions/workflows/codeql.yml">
+        <img src="https://github.com/Guard-Core/guard-agent-ts/actions/workflows/codeql.yml/badge.svg" alt="CodeQL">
+    </a>
+</p>
+
+<p align="center">
+    <a href="https://github.com/Guard-Core/guard-agent-ts/actions/workflows/pages/pages-build-deployment">
+        <img src="https://github.com/Guard-Core/guard-agent-ts/actions/workflows/pages/pages-build-deployment/badge.svg?branch=gh-pages" alt="PagesBuildDeployment">
+    </a>
+    <a href="https://github.com/Guard-Core/guard-agent-ts/actions/workflows/docs.yml">
+        <img src="https://github.com/Guard-Core/guard-agent-ts/actions/workflows/docs.yml/badge.svg" alt="DocsUpdate">
+    </a>
+    <img src="https://img.shields.io/github/last-commit/Guard-Core/guard-agent-ts?style=flat&amp;logo=git&amp;logoColor=white&amp;color=0080ff" alt="last-commit">
+</p>
+
+<p align="center">
+    <img src="https://img.shields.io/badge/TypeScript-3178C6.svg?style=flat&logo=typescript&logoColor=white" alt="TypeScript">
+    <a href="https://www.npmjs.com/package/guardagent">
+        <img src="https://img.shields.io/npm/dt/guardagent" alt="Downloads">
+    </a>
+</p>
+
+<p align="center">
+    <a href="https://guard-core.com">Website</a> &middot;
+    <a href="https://guard-core.github.io/guard-agent-ts/latest/">Docs</a> &middot;
+    <a href="https://playground.guard-core.com">Playground</a> &middot;
+    <a href="https://app.guard-core.com">Dashboard</a> &middot;
+    <a href="https://discord.gg/ZW7ZJbjMkK">Discord</a>
+</p>
+
+---
 
 ## Install
 
