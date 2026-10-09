@@ -3,6 +3,20 @@ Release Notes
 
 ___
 
+v3.2.2 (2026-10-09)
+-------------------
+
+Guard-Core org migration metadata release (v3.2.2)
+---------------------------------------------------
+
+### About this release
+
+- **A metadata-only release cut in lockstep with the sibling agents (all five agents at 3.2.2).** The `guardagent` package ships no code changes: the npm package metadata (repository, bugs, homepage) and every repository link moved to the Guard-Core org. Shipped so the agents family moves in lockstep with the engines and the other agent implementations.
+
+### Compatibility
+
+- Drop-in over 3.2.1: no API, behavior, or dependency surface changes.
+
 v3.2.1 (2026-10-07)
 -------------------
 
