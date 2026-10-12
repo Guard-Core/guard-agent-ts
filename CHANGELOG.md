@@ -3,6 +3,16 @@ Release Notes
 
 ___
 
+v3.2.3 (2026-10-12)
+-------------------
+
+User-Agent identifies the TypeScript agent (v3.2.3)
+----------------------------------------------------
+
+### Changed
+
+- The ingestion `User-Agent` header is now `guard-agent-ts/<version>` (was `guardagent/<version>`), so the Guard SaaS can tell the TypeScript agent apart from the other ports. Lockstep release with the agent family at 3.2.3.
+
 v3.2.2 (2026-10-09)
 -------------------
 
