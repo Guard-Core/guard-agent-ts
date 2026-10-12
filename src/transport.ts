@@ -138,7 +138,7 @@ export class HttpTransport {
     this.initEncryption();
 
     const headers: Record<string, string> = {
-      "User-Agent": `guardagent/${AGENT_VERSION}`,
+      "User-Agent": `guard-agent-ts/${AGENT_VERSION}`,
       "Content-Type": "application/json",
       "X-API-Key": this.config.apiKey,
       "X-Agent-Install-Id": this.installId,

@@ -80,7 +80,7 @@ describe("HttpTransport request contract", () => {
     expect(request?.headers["x-api-key"]).toBe(API_KEY);
     expect(request?.headers["x-project-id"]).toBe("proj_7");
     expect(request?.headers["content-type"]).toBe("application/json");
-    expect(request?.headers["user-agent"]).toMatch(/^guardagent\/\d+\.\d+\.\d+$/);
+    expect(request?.headers["user-agent"]).toMatch(/^guard-agent-ts\/\d+\.\d+\.\d+$/);
     expect(request?.headers["x-agent-install-id"]).toBeTruthy();
 
     const body = request?.body as Record<string, unknown>;
