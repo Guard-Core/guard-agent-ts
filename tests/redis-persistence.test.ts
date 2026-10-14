@@ -133,6 +133,7 @@ describe("GuardAgent Redis crash recovery", () => {
 
     await agent.sendEvent({ ...makeEvent(), eventType: "still_buffered" });
     expect(agent.buffer.getBufferSize()).toBe(1);
+    await agent.buffer.drainPersists();
     expect(agent.buffer.getStats().redisPersistFailures).toBeGreaterThanOrEqual(1);
     expect(agent.buffer.getStats().durabilityDegraded).toBe(true);
 

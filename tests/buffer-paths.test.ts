@@ -283,9 +283,11 @@ describe("EventBuffer overflow policy edges", () => {
     const buffer = newBuffer({ logger });
     await buffer.initializeRedis(redis);
     await buffer.addEvent(event(1));
+    await buffer.drainPersists();
     expect(buffer.getBufferSize()).toBe(1);
     expect(logger.errors().some((m) => m.includes("Failed to buffer event"))).toBe(true);
     await buffer.addMetric(metric(1));
+    await buffer.drainPersists();
     expect(buffer.getBufferSize()).toBe(2);
     expect(logger.errors().some((m) => m.includes("Failed to buffer metric"))).toBe(true);
   });
