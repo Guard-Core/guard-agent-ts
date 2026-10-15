@@ -33,8 +33,8 @@ export class EncryptionError extends Error {
  * forbidden (mirrors the Python EncryptionConfigError).
  */
 export class EncryptionConfigError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
     this.name = "EncryptionConfigError";
   }
 }

@@ -20,6 +20,7 @@
  *   globally-unique key with a 3600s TTL; on startup the buffer reloads
  *   pending items from Redis.
  */
+import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 
 import type { AgentConfig } from "./config.js";
@@ -47,6 +48,15 @@ const DROP_LOG_INTERVAL = 100;
 const REDIS_PERSIST_TTL_SECONDS = 3600;
 
 type Waiter = () => void;
+
+/**
+ * True inside the async context of a Redis persist. guard-core's Redis
+ * manager reports a failed operation through the agent's sendEvent, which
+ * would persist again and fail again without bound; an event emitted inside
+ * a persist is buffered in memory only. AsyncLocalStorage scopes this to the
+ * persist's own async chain, so unrelated concurrent requests still persist.
+ */
+const persisting = new AsyncLocalStorage<boolean>();
 
 function uniqueKey(prefix: string): string {
   const nanos = process.hrtime.bigint().toString();
@@ -102,6 +112,15 @@ export class EventBuffer {
   private autoFlushTimer: NodeJS.Timeout | null = null;
   private running = false;
   private readonly inflightFlushes = new Set<Promise<void>>();
+  private readonly inflightPersists = new Set<Promise<void>>();
+  private persistOverflowLogged = false;
+  /**
+   * Items with a persist in flight, mapped to whether they are still in the
+   * buffer. Every path that takes an item out (drop, flush drain, clear)
+   * flips it and a requeue flips it back, so the post-write check is O(1)
+   * instead of scanning the buffer.
+   */
+  private readonly pendingPersists = new Map<SecurityEvent | SecurityMetric, boolean>();
 
   eventsBuffered = 0;
   metricsBuffered = 0;
@@ -167,6 +186,73 @@ export class EventBuffer {
       this.redisPersistFailures += 1;
       this.logger.warn(`Failed to persist metric to Redis: ${errorMessage(error)}`);
       return null;
+    }
+  }
+
+  /**
+   * Run a Redis persist as a tracked background promise so the request path
+   * never waits on Redis; stopAutoFlush drains it. Nothing is created
+   * without a Redis handler or while a persist is in flight in this async
+   * context. In-flight persists are capped at bufferSize (shared by events
+   * and metrics): past it the item stays in memory only and counts as a
+   * persist failure, so a slow Redis cannot pile up unbounded tasks.
+   */
+  private spawnPersist(persist: () => Promise<void>): void {
+    if (!this.redisHandler || persisting.getStore()) return;
+    if (this.inflightPersists.size >= this.config.bufferSize) {
+      this.redisPersistFailures += 1;
+      if (!this.persistOverflowLogged) {
+        this.persistOverflowLogged = true;
+        this.logger.warn(
+          `Redis persist backlog at buffer_size=${this.config.bufferSize}; buffering in memory only until it drains`,
+        );
+      }
+      return;
+    }
+    const task = persisting.run(true, persist).then(() => {
+      this.inflightPersists.delete(task);
+      if (this.inflightPersists.size === 0) this.persistOverflowLogged = false;
+    });
+    this.inflightPersists.add(task);
+  }
+
+  /** Wait for every pending background persist (never rejects). */
+  async drainPersists(): Promise<void> {
+    while (this.inflightPersists.size > 0) {
+      await Promise.allSettled([...this.inflightPersists]);
+    }
+  }
+
+  /**
+   * Persist an already-buffered event. If it left the buffer meanwhile
+   * (flushed or evicted) the new key is deleted instead of tracked, so it
+   * neither orphans nor replays after a restart.
+   */
+  private async persistAndTrackEvent(event: SecurityEvent): Promise<void> {
+    try {
+      this.pendingPersists.set(event, true);
+      const key = await this.persistEventToRedis(event);
+      if (key === null) return;
+      if (this.pendingPersists.get(event)) this.eventRedisKeys.set(event, key);
+      else await this.confirmEventRedisKeys([key]);
+    } catch (error) {
+      this.logger.error(`Failed to buffer event: ${errorMessage(error)}`);
+    } finally {
+      this.pendingPersists.delete(event);
+    }
+  }
+
+  private async persistAndTrackMetric(metric: SecurityMetric): Promise<void> {
+    try {
+      this.pendingPersists.set(metric, true);
+      const key = await this.persistMetricToRedis(metric);
+      if (key === null) return;
+      if (this.pendingPersists.get(metric)) this.metricRedisKeys.set(metric, key);
+      else await this.confirmMetricRedisKeys([key]);
+    } catch (error) {
+      this.logger.error(`Failed to buffer metric: ${errorMessage(error)}`);
+    } finally {
+      this.pendingPersists.delete(metric);
     }
   }
 
@@ -304,9 +390,15 @@ export class EventBuffer {
     return this.metricBuffer.length >= this.maxSize;
   }
 
+  /** Flip a pending persist's in-buffer flag (no-op for items without one). */
+  private markPending(item: SecurityEvent | SecurityMetric, inBuffer: boolean): void {
+    if (this.pendingPersists.has(item)) this.pendingPersists.set(item, inBuffer);
+  }
+
   private forgetOldestEventKey(): string | null {
     const oldest = this.eventBuffer[0];
     if (oldest === undefined) return null;
+    this.markPending(oldest, false);
     const key = this.eventRedisKeys.get(oldest) ?? null;
     this.eventRedisKeys.delete(oldest);
     return key;
@@ -315,6 +407,7 @@ export class EventBuffer {
   private forgetOldestMetricKey(): string | null {
     const oldest = this.metricBuffer[0];
     if (oldest === undefined) return null;
+    this.markPending(oldest, false);
     const key = this.metricRedisKeys.get(oldest) ?? null;
     this.metricRedisKeys.delete(oldest);
     return key;
@@ -323,6 +416,7 @@ export class EventBuffer {
   private forgetNewestEventKey(): string | null {
     const newest = this.eventBuffer[this.eventBuffer.length - 1];
     if (newest === undefined) return null;
+    this.markPending(newest, false);
     const key = this.eventRedisKeys.get(newest) ?? null;
     this.eventRedisKeys.delete(newest);
     return key;
@@ -331,6 +425,7 @@ export class EventBuffer {
   private forgetNewestMetricKey(): string | null {
     const newest = this.metricBuffer[this.metricBuffer.length - 1];
     if (newest === undefined) return null;
+    this.markPending(newest, false);
     const key = this.metricRedisKeys.get(newest) ?? null;
     this.metricRedisKeys.delete(newest);
     return key;
@@ -380,16 +475,9 @@ export class EventBuffer {
   async addEvent(event: SecurityEvent): Promise<void> {
     for (;;) {
       if (!this.isEventBufferFull()) {
-        try {
-          this.eventBuffer.push(event);
-          this.eventsBuffered += 1;
-          if (this.redisHandler) {
-            const key = await this.persistEventToRedis(event);
-            if (key !== null) this.eventRedisKeys.set(event, key);
-          }
-        } catch (error) {
-          this.logger.error(`Failed to buffer event: ${errorMessage(error)}`);
-        }
+        this.eventBuffer.push(event);
+        this.eventsBuffered += 1;
+        this.spawnPersist(() => this.persistAndTrackEvent(event));
         break;
       }
 
@@ -428,16 +516,9 @@ export class EventBuffer {
   async addMetric(metric: SecurityMetric): Promise<void> {
     for (;;) {
       if (!this.isMetricBufferFull()) {
-        try {
-          this.metricBuffer.push(metric);
-          this.metricsBuffered += 1;
-          if (this.redisHandler) {
-            const key = await this.persistMetricToRedis(metric);
-            if (key !== null) this.metricRedisKeys.set(metric, key);
-          }
-        } catch (error) {
-          this.logger.error(`Failed to buffer metric: ${errorMessage(error)}`);
-        }
+        this.metricBuffer.push(metric);
+        this.metricsBuffered += 1;
+        this.spawnPersist(() => this.persistAndTrackMetric(metric));
         break;
       }
 
@@ -499,6 +580,7 @@ export class EventBuffer {
    */
   async flushEventsWithKeys(): Promise<[SecurityEvent[], string[]]> {
     const events = [...this.eventBuffer];
+    for (const event of events) this.markPending(event, false);
     const keys = events.map((event) => this.eventRedisKeys.get(event) ?? "");
     this.eventBuffer.length = 0;
     this.eventRedisKeys.clear();
@@ -515,6 +597,7 @@ export class EventBuffer {
    */
   async flushMetricsWithKeys(): Promise<[SecurityMetric[], string[]]> {
     const metrics = [...this.metricBuffer];
+    for (const metric of metrics) this.markPending(metric, false);
     const keys = metrics.map((metric) => this.metricRedisKeys.get(metric) ?? "");
     this.metricBuffer.length = 0;
     this.metricRedisKeys.clear();
@@ -545,6 +628,7 @@ export class EventBuffer {
         this.eventBuffer.pop();
       }
       this.eventBuffer.unshift(event);
+      this.markPending(event, true);
       if (key) this.eventRedisKeys.set(event, key);
     }
     return evictedKeys;
@@ -567,6 +651,7 @@ export class EventBuffer {
         this.metricBuffer.pop();
       }
       this.metricBuffer.unshift(metric);
+      this.markPending(metric, true);
       if (key) this.metricRedisKeys.set(metric, key);
     }
     return evictedKeys;
@@ -577,6 +662,7 @@ export class EventBuffer {
    * namespaces (mirroring clear_buffer).
    */
   async clearBuffer(): Promise<void> {
+    for (const item of this.pendingPersists.keys()) this.pendingPersists.set(item, false);
     this.eventBuffer.length = 0;
     this.eventRedisKeys.clear();
     this.notifyWaiters(this.eventWaiters);
@@ -635,6 +721,7 @@ export class EventBuffer {
       await Promise.allSettled([...this.inflightFlushes]);
     }
     this.inflightFlushes.clear();
+    await this.drainPersists();
     this.activeFlushes = 0;
   }
 

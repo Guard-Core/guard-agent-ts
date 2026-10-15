@@ -150,6 +150,7 @@ describe("EventBuffer redis persistence", () => {
     await buffer.initializeRedis(redis);
 
     await buffer.addEvent(event(1));
+    await buffer.drainPersists();
     const [, keys] = await buffer.flushEventsWithKeys();
     await buffer.requeueEventsInMemory(await Promise.resolve([event(1)]), keys);
     // Key must still exist after requeue; only confirm deletes it.

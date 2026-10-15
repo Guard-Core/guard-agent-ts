@@ -181,7 +181,9 @@ export class HttpTransport {
         throw error;
       }
       throw new EncryptionConfigError(
-        "Encryption round-trip failed at startup; refusing plaintext fallback",
+        "Encryption round-trip failed at startup; refusing plaintext " +
+          `fallback (cause: ${errorMessage(error)})`,
+        { cause: error },
       );
     }
   }
