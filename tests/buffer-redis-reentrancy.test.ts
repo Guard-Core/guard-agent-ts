@@ -151,10 +151,11 @@ describe("EventBuffer redis persistence is off the request path", () => {
     await buffer.addEvent(event("second"));
     redis.release();
     await buffer.drainPersists();
-    expect(redis.store.size).toBe(1);
+    // the evicted first key is deleted; the second hit the in-flight cap and stays memory-only
+    expect(redis.store.size).toBe(0);
     const [events, keys] = await buffer.flushEventsWithKeys();
     expect(events.map((e) => e.reason)).toEqual(["second"]);
-    expect(keys[0]).not.toBe("");
+    expect(keys).toEqual([""]);
   });
 
   it("dropping a persisted oldest item deletes its tracked key", async () => {
@@ -162,13 +163,27 @@ describe("EventBuffer redis persistence is off the request path", () => {
     const redis = new FakeRedisHandler();
     await buffer.initializeRedis(redis);
     await buffer.addEvent(event("first"));
+    await buffer.drainPersists();
     await buffer.addMetric(metric());
     await buffer.drainPersists();
     expect(redis.store.size).toBe(2);
     await buffer.addEvent(event("second"));
+    await buffer.drainPersists();
     await buffer.addMetric(metric());
     await buffer.drainPersists();
     expect(redis.store.size).toBe(2);
+  });
+
+  it("clearing the buffer during the persist deletes the key", async () => {
+    const buffer = newBuffer();
+    const redis = new GatedRedis();
+    await buffer.initializeRedis(redis);
+    await buffer.addEvent(event());
+    await redis.entered;
+    await buffer.clearBuffer();
+    redis.release();
+    await buffer.drainPersists();
+    expect(redis.store.size).toBe(0);
   });
 
   it("a requeue during the persist tracks the key", async () => {
@@ -230,5 +245,37 @@ describe("HttpTransport startup encryption failure", () => {
         expect(e.cause).toBeInstanceOf(Error);
       },
     );
+  });
+});
+
+describe("EventBuffer bounds in-flight redis persists", () => {
+  const inflight = (b: EventBuffer) =>
+    (b as unknown as { inflightPersists: Set<unknown> }).inflightPersists.size;
+  const backlogWarnings = (log: ReturnType<typeof collectingLogger>) =>
+    log.warnings().filter((m) => m.includes("persist backlog"));
+
+  it("never exceeds bufferSize, counts the overflow and warns once per episode", async () => {
+    const logger = collectingLogger();
+    const buffer = newBuffer({ bufferSize: 3, logger });
+    const redis = new GatedRedis();
+    await buffer.initializeRedis(redis);
+    for (let i = 0; i < 20; i += 1) await buffer.addEvent(event());
+    for (let i = 0; i < 3; i += 1) await buffer.addMetric(metric());
+    expect(inflight(buffer)).toBe(3);
+    expect(buffer.redisPersistFailures).toBe(20);
+    expect(backlogWarnings(logger)).toEqual([
+      "Redis persist backlog at buffer_size=3; buffering in memory only until it drains",
+    ]);
+    redis.release();
+    await buffer.drainPersists();
+    expect(inflight(buffer)).toBe(0);
+
+    const second = new GatedRedis();
+    await buffer.initializeRedis(second);
+    for (let i = 0; i < 5; i += 1) await buffer.addEvent(event());
+    expect(inflight(buffer)).toBe(3);
+    expect(backlogWarnings(logger)).toHaveLength(2);
+    second.release();
+    await buffer.drainPersists();
   });
 });

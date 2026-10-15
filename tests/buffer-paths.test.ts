@@ -267,9 +267,13 @@ describe("EventBuffer overflow policy edges", () => {
     const buffer = newBuffer({ bufferSize: 1 });
     await buffer.initializeRedis(redis);
     await buffer.addEvent(event(1));
+    await buffer.drainPersists();
     await buffer.addEvent(event(2)); // evicts event 1 and confirms its key
+    await buffer.drainPersists();
     await buffer.addMetric(metric(1));
+    await buffer.drainPersists();
     await buffer.addMetric(metric(2)); // evicts metric 1 and confirms its key
+    await buffer.drainPersists();
     expect(redis.store.size).toBe(2);
   });
 
