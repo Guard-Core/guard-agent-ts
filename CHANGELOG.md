@@ -3,6 +3,16 @@ Release Notes
 
 ___
 
+v3.2.4 (2026-10-15)
+-------------------
+
+Redis persistence off the request path (v3.2.4)
+-----------------------------------------------
+
+### Fixed
+
+- `addEvent` and `addMetric` no longer await Redis, so a slow or failing Redis no longer delays requests that emit events. A Redis failure that reported through `sendEvent` used to re-enter persistence through unbounded async recursion; persists are now tracked background promises scoped by `AsyncLocalStorage` and drained on stop. In-flight persists are capped at `bufferSize` (shared by events and metrics): past the cap the item stays in memory only, counts toward `redisPersistFailures`, and one warning is logged per degradation episode. The startup encryption error now includes the cause. Lockstep release with the agent family at 3.2.4.
+
 v3.2.3 (2026-10-12)
 -------------------
 
