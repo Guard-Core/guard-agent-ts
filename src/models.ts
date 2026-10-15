@@ -198,6 +198,8 @@ export class SecurityEvent {
   readonly patternMatched: string | null;
   readonly handlerName: string | null;
   readonly metadata: Record<string, unknown>;
+  /** Unknown fields, kept like pydantic extra="allow" (models.py:211). */
+  readonly extra: Record<string, unknown>;
 
   constructor(fields: {
     idempotencyKey: string;
@@ -217,6 +219,7 @@ export class SecurityEvent {
     patternMatched?: string | null;
     handlerName?: string | null;
     metadata?: Record<string, unknown>;
+    extra?: Record<string, unknown>;
   }) {
     this.idempotencyKey = fields.idempotencyKey;
     this.timestamp = fields.timestamp;
@@ -235,6 +238,7 @@ export class SecurityEvent {
     this.patternMatched = fields.patternMatched ?? null;
     this.handlerName = fields.handlerName ?? null;
     this.metadata = fields.metadata ?? {};
+    this.extra = fields.extra ?? {};
   }
 
   /** Copy with a replaced metadata bag (used for redaction). */
@@ -260,6 +264,7 @@ export class SecurityEvent {
     patternMatched: string | null;
     handlerName: string | null;
     metadata: Record<string, unknown>;
+    extra: Record<string, unknown>;
   } {
     return {
       idempotencyKey: this.idempotencyKey,
@@ -279,15 +284,27 @@ export class SecurityEvent {
       patternMatched: this.patternMatched,
       handlerName: this.handlerName,
       metadata: this.metadata,
+      extra: this.extra,
     };
   }
 }
 
+/** Every key (camelCase and snake_case) the typed SecurityEvent fields read. */
+const KNOWN_EVENT_KEYS = new Set([
+  "idempotencyKey", "idempotency_key", "timestamp", "eventType", "event_type",
+  "ipAddress", "ip_address", "country", "userAgent", "user_agent",
+  "actionTaken", "action_taken", "reason", "endpoint", "method",
+  "statusCode", "status_code", "responseTime", "response_time",
+  "decoratorType", "decorator_type", "ruleType", "rule_type",
+  "patternMatched", "pattern_matched", "handlerName", "handler_name", "metadata",
+]);
+
 /**
  * Normalize arbitrary input into a SecurityEvent, mirroring
- * IngestMixin._normalize_event (guard_agent/_client_ingest.py:49-54): only
- * known fields are read, and anything missing or invalid raises
- * InvalidEventError, which `sendEvent` catches and logs.
+ * IngestMixin._normalize_event (guard_agent/_client_ingest.py:49-54): anything
+ * missing or invalid raises InvalidEventError, which `sendEvent` catches and
+ * logs. Fields outside the known set ride along as `extra` and reach the
+ * wire, like the reference's extra="allow" (models.py:211).
  *
  * Accepts both camelCase and snake_case keys so adapter code that already
  * speaks the Python field names works unchanged.
@@ -352,6 +369,9 @@ export function normalizeSecurityEvent(input: unknown): SecurityEvent {
       "handler_name",
     ),
     metadata: metadataRecord(pick(input, "metadata", "metadata")),
+    extra: Object.fromEntries(
+      Object.entries(input).filter(([key]) => !KNOWN_EVENT_KEYS.has(key)),
+    ),
   });
 }
 
@@ -434,6 +454,7 @@ export function isoUtc(value: Date): string {
 /** SecurityEvent -> wire dict (snake_case, mirroring model_dump()). */
 export function eventToWire(event: SecurityEvent): Record<string, unknown> {
   return {
+    ...event.extra,
     idempotency_key: event.idempotencyKey,
     timestamp: isoUtc(event.timestamp),
     event_type: event.eventType,

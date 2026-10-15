@@ -168,11 +168,10 @@ export class GuardAgent {
       this.running = true;
       this.loopsAbort = new AbortController();
       const signal = this.loopsAbort.signal;
-      this.loops = [
-        this.runFlushLoop(signal),
-        this.runStatusLoop(signal),
-        this.runRulesLoop(signal),
-      ];
+      this.loops = [this.runFlushLoop(signal), this.runStatusLoop(signal)];
+      // The reference starts the rules loop only with a project id
+      // (client.py:128-129).
+      if (this.config.projectId) this.loops.push(this.runRulesLoop(signal));
 
       this.logger.info("Guard Agent started successfully");
     } catch (error) {

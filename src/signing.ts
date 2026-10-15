@@ -3,8 +3,9 @@
  *
  * When `payloadSigningSecret` is configured the transport sends
  * `X-Payload-Signature: v1=<hex>`, where <hex> is the HMAC-SHA256 of the
- * exact request body bytes (after gzip, when compression applies). The server
- * verifies it in guard-core-api at
+ * UNCOMPRESSED request body bytes (the raw JSON, even when the wire body is
+ * gzipped; the Python agent signs the same bytes, _transport_dispatch.py:108-126).
+ * The server decompresses first and verifies it in guard-core-api at
  * guard_core_api/api/routers/telemetry_router.py:110-126 against
  * INGEST_PAYLOAD_SIGNING_SECRET.
  */

@@ -59,7 +59,11 @@ type Waiter = () => void;
 const persisting = new AsyncLocalStorage<boolean>();
 
 function uniqueKey(prefix: string): string {
-  const nanos = process.hrtime.bigint().toString();
+  // Wall-clock epoch nanoseconds like time.time_ns() (_buffer_redis.py:54),
+  // at microsecond resolution: performance.now() is monotonic within the process.
+  const nanos = (
+    BigInt(Math.floor((performance.timeOrigin + performance.now()) * 1000)) * 1000n
+  ).toString();
   const rand = randomUUID().replace(/-/g, "").slice(0, 8);
   return `${prefix}_${nanos}_${rand}`;
 }

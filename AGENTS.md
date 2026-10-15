@@ -5,13 +5,13 @@ Guidance for AI agents (including Claude Code) working in this repository.
 
 guard-agent-ts (npm package `guardagent`) is the TypeScript telemetry and monitoring agent for the Guard security ecosystem. It is a dependency-free (optional ioredis peer) Node.js >= 20 client that buffers security events from guard-core-ts adapters and ships them to the Guard Core App ingestion API with at-least-once delivery, crash-recovery persistence, and a hard guarantee: telemetry failures never propagate into the host request path.
 
-Version 3.0.2. License MIT. ESM + CJS dual build via tsup; typed public API.
+Version 3.2.4. License MIT. ESM + CJS dual build via tsup; typed public API.
 
 ## Ecosystem Position
 
 - Reports to the Guard Core App ingestion API (`guard-core-app/backend/guard-core-api`): POST /api/v1/events, POST /api/v1/metrics, POST /api/v1/status; GET /api/v1/rules for dynamic rules.
 - Consumed by guard-core-ts adapters (Express, Fastify, Hono, NestJS) or any Node app that needs to ship Guard security events.
-- Sibling agents: guard-agent (Python, the reference implementation), guard-agent-rs (Rust). All speak the same ingestion contract.
+- Sibling agents: guard-agent (Python, the reference implementation), guard-agent-rs (Rust), guard-agent-go (Go), guard-agent-php (PHP), guard-agent-jvm (JVM). All speak the same ingestion contract.
 - The ingestion contract: X-API-Key + X-Project-Id + X-Agent-Install-Id headers, gzip body compression, HMAC X-Payload-Signature over the UNCOMPRESSED body (the server decompresses and verifies afterward), Retry-After honored on 429, 413 above 262144 decompressed bytes (split-or-drop), 400/404/422 treated as permanent rejection, and a 200 with success:false requeued as a partial failure.
 
 ## Architecture
@@ -59,7 +59,7 @@ await agent.stop();
 
 ## Configuration
 
-AgentConfig fields (all validated at construction, problems reported together as ConfigError): apiKey (required, min 10 chars), endpoint (default https://api.guard-core.com, trailing slashes and a legacy /api/v1 suffix stripped), projectId, bufferSize (100), flushInterval (30s), statusInterval (300s, min 60), dynamicRuleInterval (300s, min 60), highWatermarkRatio (0.8), maxConcurrentFlushes (1), bufferOverflowPolicy (drop/block/raise), enableEvents/enableMetrics, retryAttempts (3), timeout (30s), backoffFactor, sensitiveHeaders, maxPayloadSize, guardVersion/guardCoreVersion, compressionEnabled/compressionThreshold (true/1024), installId, payloadSigningSecret, onError, logger, and redis ({url, keyPrefix, password, db, commandTimeoutMs}, optional). See src/config.ts for the full typed surface and docs/configuration.md for the table form.
+AgentConfig fields (all validated at construction, problems reported together as ConfigError): apiKey (required, min 10 chars), endpoint (default https://api.guard-core.com, trailing slashes and a legacy /api/v1 suffix stripped), projectId, bufferSize (100), flushInterval (30s), statusInterval (300s, min 60), dynamicRuleInterval (300s, min 60), highWatermarkRatio (0.8), maxConcurrentFlushes (1), bufferOverflowPolicy (drop/block/raise), enableEvents/enableMetrics, retryAttempts (3), timeout (30s), backoffFactor, sensitiveHeaders, maxPayloadSize, guardVersion/guardCoreVersion, compressionEnabled/compressionThreshold (true/1024), installId, payloadSigningSecret, projectEncryptionKey, onError, logger, and redis ({url, keyPrefix, password, db, commandTimeoutMs}, optional). See src/config.ts for the full typed surface and docs/configuration.md for the table form.
 
 ## Reliability Semantics
 
@@ -70,7 +70,10 @@ AgentConfig fields (all validated at construction, problems reported together as
 - Partial failure: a 200 with success:false or a non-empty errors array is requeued for retry, not acknowledged.
 - Permanent rejection: 400/404/422 drop the event (retrying cannot succeed) and increment the rejection counter.
 - Degraded state: consecutive failures flip the agent into degraded mode; health checks probe the API and restore.
-- Persistence: when Redis is configured, unconfirmed events persist under globally-unique keys (3600s TTL) and reload at startup for crash recovery.
+- Persistence: when Redis is configured, unconfirmed events persist under globally-unique keys `event_<epoch ns>_<8hex>` / `metric_<epoch ns>_<8hex>` (3600s TTL; the stamp is wall-clock epoch nanoseconds like Python's `time.time_ns()`, at microsecond resolution) and reload at startup for crash recovery. Reload follows the reference: it walks the keys in the order Redis returns them and does not sort.
+- Rules loop: it starts only when `projectId` is set (the reference's `if self.config.project_id`); `getDynamicRules()` still works without one.
+- Unknown event fields: a `SecurityEvent` keeps fields outside the typed set as `extra` and sends them on the wire (the reference's pydantic `extra="allow"`); metadata redaction still applies.
+- Stats: `getStats()` carries exactly the reference `get_stats()` key set (`buffer_stats` and `transport_stats` included), camelCased (`events_sent` is `eventsSent`, `buffer_stats` is `bufferStats`, `loop_failures` is `loopFailures`, and so on). The dict is host-facing only (the guard-core-ts adapters merge it into `agentStats`); it is not serialized into any status push, health endpoint or SaaS payload, so the camelCase idiom is kept.
 - Failure isolation: no GuardAgent method throws into the host request path; telemetry failures are logged and counted, never propagated. This mirrors the Python agent's policy and is covered by tests.
 
 ## Development Commands
