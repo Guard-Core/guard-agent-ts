@@ -125,4 +125,4 @@ thresholds, and the emergency-mode triple with the optional rule
 message.
 
 `getStats()` reports `rulesFetched`, `cachedRules`, `rulesLastUpdate`,
-and `loopFailures.rules`.
+and `loopFailures.rules`. The rules loop only runs when `projectId` is configured.
