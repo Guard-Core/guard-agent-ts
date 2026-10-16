@@ -91,7 +91,7 @@ AgentConfig fields (all validated at construction, problems reported together as
 
 Vitest. Unit tests per module (buffer, transport, config, models, utils, logger, install-id, redis-persistence), plus an integration suite against tests/helpers/mock-server.ts, which mirrors the ingestion contract. tests/helpers/fake-redis.ts emulates the Redis surface without a server. Redis-backed tests degrade gracefully when no Redis is present (covered: "degrades to per-operation failures (never crashes) when redis is down").
 
-CI (.github/workflows/ci.yml): lint + build on node 22, plus pnpm test:coverage on a node 20/22 matrix with a redis:7-alpine service. .github/workflows/release.yml gates v* tags (test matrix, tarball pack + install smoke; npm publishing stays manual and owner-gated), .github/workflows/scheduled-lint.yml reruns typecheck + build + pnpm audit weekly, codeql.yml scans javascript-typescript, docs.yml deploys the mkdocs site, and issue-link.yml enforces a "Closes #N" link (or the no-issue label) on PRs.
+CI (.github/workflows/ci.yml): lint + build on node 22, plus pnpm test:coverage on a node 20/22 matrix with a redis:7-alpine service. .github/workflows/release.yml publishes guardagent to npm with provenance for a GitHub release (or a manual run with a `tag` input, which re-drives an existing tag) after requiring the tagged commit's push run of ci.yml to have passed; it runs no test of its own, and the tarball pack + install smoke lives in ci.yml, .github/workflows/scheduled-lint.yml reruns typecheck + build + pnpm audit weekly, codeql.yml scans javascript-typescript, docs.yml deploys the mkdocs site, and issue-link.yml enforces a "Closes #N" link (or the no-issue label) on PRs.
 
 ## Best Practices
 
