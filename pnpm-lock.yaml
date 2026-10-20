@@ -26,9 +26,12 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+      vite:
+        specifier: ^7.3.7
+        version: 7.3.7(@types/node@26.6.5)
       vitest:
         specifier: ^5.0.2
-        version: 5.0.3(@types/node@26.6.5)(@vitest/coverage-v8@5.0.3)(vite@7.3.6(@types/node@26.6.5))
+        version: 5.0.3(@types/node@26.6.5)(@vitest/coverage-v8@5.0.3)(vite@7.3.7(@types/node@26.6.5))
 
 packages:
 
@@ -840,8 +843,8 @@ packages:
   undici-types@8.9.0:
     resolution: {integrity: sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==}
 
-  vite@7.3.6:
-    resolution: {integrity: sha512-4XP60spRGjSZFf1qYH+dJIkK2znL3zQfl9KkOV9MkkRR/3Dls0dxaBsQPTloEc5BLXWPL9vsOxopxyKoMmDueg==}
+  vite@7.3.7:
+    resolution: {integrity: sha512-AHEzTORMbi7/7aXp7w7KZ5+DCUdSeLsJz0grY8xHpc9DHdYb0vQu6DqJfm2tOw3gDExNgPgnJTXxM6syYFHaCA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
     peerDependencies:
@@ -1213,7 +1216,7 @@ snapshots:
       obug: 2.2.1
       std-env: 4.3.0
       tinyrainbow: 3.2.0
-      vitest: 5.0.3(@types/node@26.6.5)(@vitest/coverage-v8@5.0.3)(vite@7.3.6(@types/node@26.6.5))
+      vitest: 5.0.3(@types/node@26.6.5)(@vitest/coverage-v8@5.0.3)(vite@7.3.7(@types/node@26.6.5))
 
   '@vitest/istanbul-lib-coverage@1.0.2': {}
 
@@ -1221,14 +1224,14 @@ snapshots:
     dependencies:
       '@vitest/istanbul-lib-coverage': 1.0.2
 
-  '@vitest/mocker@5.0.3(vite@7.3.6(@types/node@26.6.5))':
+  '@vitest/mocker@5.0.3(vite@7.3.7(@types/node@26.6.5))':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@vitest/spy': 5.0.3
       estree-walker: 3.0.3
       magic-string: 1.4.3
     optionalDependencies:
-      vite: 7.3.6(@types/node@26.6.5)
+      vite: 7.3.7(@types/node@26.6.5)
 
   '@vitest/spy@5.0.3': {}
 
@@ -1550,7 +1553,7 @@ snapshots:
 
   undici-types@8.9.0: {}
 
-  vite@7.3.6(@types/node@26.6.5):
+  vite@7.3.7(@types/node@26.6.5):
     dependencies:
       esbuild: 0.28.2
       fdir: 6.5.0(picomatch@4.0.7)
@@ -1562,10 +1565,10 @@ snapshots:
       '@types/node': 26.6.5
       fsevents: 2.3.3
 
-  vitest@5.0.3(@types/node@26.6.5)(@vitest/coverage-v8@5.0.3)(vite@7.3.6(@types/node@26.6.5)):
+  vitest@5.0.3(@types/node@26.6.5)(@vitest/coverage-v8@5.0.3)(vite@7.3.7(@types/node@26.6.5)):
     dependencies:
       '@types/chai': 5.2.3
-      '@vitest/mocker': 5.0.3(vite@7.3.6(@types/node@26.6.5))
+      '@vitest/mocker': 5.0.3(vite@7.3.7(@types/node@26.6.5))
       chai: 6.3.0
       es-module-lexer: 2.3.2
       expect-type: 1.4.0
@@ -1576,7 +1579,7 @@ snapshots:
       tinybench: 6.2.0
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
-      vite: 7.3.6(@types/node@26.6.5)
+      vite: 7.3.7(@types/node@26.6.5)
       why-is-node-running: 3.2.1
     optionalDependencies:
       '@types/node': 26.6.5
