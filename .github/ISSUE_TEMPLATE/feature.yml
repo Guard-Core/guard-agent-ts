@@ -27,7 +27,7 @@ body:
     attributes:
       label: Example usage
       description: Pseudocode of how you would like to use it.
-      render: python
+      render: typescript
   - type: textarea
     id: context
     attributes:

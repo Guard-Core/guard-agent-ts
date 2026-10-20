@@ -11,7 +11,7 @@
     "middleware",
     "agent"
   ],
-  "author": "Renzo Franceschini <rennf93@gmail.com>",
+  "author": "Renzo Franceschini <rennf93@guard-core.com>",
   "license": "MIT",
   "homepage": "https://github.com/Guard-Core/guard-agent-ts",
   "repository": {
