@@ -65,9 +65,9 @@
     "@types/node": "^26.6.3",
     "@vitest/coverage-v8": "^5.0.2",
     "ioredis": "^6.0.0",
-    "tsup": "^8.5.1",
+    "tsup": "^9.0.0",
     "typescript": "^5.9.3",
-    "vite": "^7.3.7",
+    "vite": "^8.3.4",
     "vitest": "^5.0.2"
   },
   "packageManager": "pnpm@10.25.0",
