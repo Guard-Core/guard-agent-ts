@@ -4,6 +4,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+      day: "monday"
+      time: "02:00"
+      timezone: "UTC"
     groups:
       actions:
         patterns:
@@ -12,6 +15,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+      day: "monday"
+      time: "02:00"
+      timezone: "UTC"
     groups:
       npm:
         patterns:
